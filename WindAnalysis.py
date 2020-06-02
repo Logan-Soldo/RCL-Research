@@ -24,7 +24,7 @@ def read_csv():
     data = data.rename(columns = {"Spd.1":"Gust Speed"})
 
     data = data.set_index('Date')
-    ASOS = data.loc['1997-01-01':'2019-12-31']
+    ASOS = data.loc['1997-01-01':'2019-12-31'].copy()
 
 
     ASOS.replace(999.9,np.nan,inplace=True)
@@ -48,25 +48,27 @@ def spd_calc(df):
     df['spd>=5'] = np.where(df['Spd'] >= 5.0,1,0)     # flags as 1 if the row value meets the condition.
     df['spd>=10'] = np.where(df['Spd'] >= 10.0,1,0)
     df['spd>=15'] = np.where(df['Spd'] >= 15.0,1,0)
-    df['spd>=20'] = np.where(df['Spd'] >= 20.0,1,0)    
-    print(df)
+    df['>=20'] = np.where(df['Spd'] >= 20.0,1,0)    
+  #  print(df)
     df = df.drop(['Dir','Gust Speed','Spd'],axis = 1 )
     
     Wind_speed = df.groupby(df.index.year).sum()
-    print(Wind_speed)
+ #   print(Wind_speed)
+    return Wind_speed
 
 def spd_between(df):
-    df['spd_miss'] = np.where((df['Spd'].isnull()),1,0)
-    df['spd_0->5'] = np.where((df['Spd'] >= 0)&(df['Spd']<5),1,0)     # flags as 1 if the row value meets the condition.
-    df['spd_5->10'] = np.where((df['Spd'] > 5)&(df['Spd']<=10),1,0)     # flags as 1 if the row value meets the condition.
-    df['spd_10->15'] = np.where((df['Spd'] > 10)&(df['Spd']<=15),1,0)     # flags as 1 if the row value meets the condition.
-    df['spd_15->20'] = np.where((df['Spd'] > 15)&(df['Spd']<=20),1,0)     # flags as 1 if the row value meets the condition.
-        
-    print(df)
+    df['Missing'] = np.where((df['Spd'].isnull()),1,0)
+    df['0->5'] = np.where((df['Spd'] >= 0)&(df['Spd']<5),1,0)     # flags as 1 if the row value meets the condition.
+    df['5->10'] = np.where((df['Spd'] >= 5)&(df['Spd']<10),1,0)     # flags as 1 if the row value meets the condition.
+    df['10->15'] = np.where((df['Spd'] >= 10)&(df['Spd']<15),1,0)     # flags as 1 if the row value meets the condition.
+    df['15->20'] = np.where((df['Spd'] >= 15)&(df['Spd']<20),1,0)     # flags as 1 if the row value meets the condition.
+    
+   # print(df)
     df = df.drop(['Dir','Gust Speed','Spd'],axis = 1 )
 
     Between_speed = df.groupby(df.index.year).sum()
-    print(Between_speed)
+  #  print(Between_speed)
+    return Between_speed
 
     
     
@@ -82,16 +84,82 @@ def month_to_seaon_LUT(df):
     grp_ary = month_to_season_lu[df.index.month]
     
     ASOS_season = df.groupby(grp_ary).mean()
-   # print(ASOS_season)
 
 
     
 def plot_dir(df):
+    '''
+    Plotting function for direction.
+
+    Parameters
+    ----------
+    df : Dataframe called in to be plotted based on parameters.
+
+    Returns
+    -------
+    None.
+
+    '''
+    plt.rc('font', family='serif')  
+    plt.rc('xtick', labelsize='x-small')
+    plt.rc('ytick', labelsize='x-small')
+    
     fig, ax = plt.subplots(figsize=(10, 10))  
     ax.plot(df.index.values,df['Dir'])
     ax.set_ylim(0,360)
 #    plt.xticks(np.arrange(min(x)+1))
-    plt.show()
+    plt.show()   
+    
+def plot_spd(df):
+    df.reset_index(level=0,inplace=True)
+    print(df)
+
+    plt.rc('font', family='serif')  
+    plt.rc('xtick', labelsize='x-small')
+    plt.rc('ytick', labelsize='x-small')    
+
+    fig, ax = plt.subplots(dpi=2000)  
+
+    ax = df.plot(x='Date',y=["Missing","0->5","5->10","10->15","15->20",">=20"],kind="line")
+    ax.set_title('Sum of Hours Between Wind Speed: EWR')
+    ax.grid()
+    ax.set_xlim(1997,2019)
+    ax.set_xticks(range(1997,2019,1))
+    ax.set_xticklabels(range(1997,2019,1),rotation=45)
+    ax.set_ylim([0,6500])
+    ax.set_yticks(range(0,6500,500))
+    ax.set_ylabel("Sum of Hours")
+    ax.legend(fontsize=8,labelspacing = 0.1)
+
+    figname = "WindSpeed"
+    savefig(figname)
+   # ax.get_legend().remove()
+  #  ax.set_ylim(0,max(df))
+    
+def color_pick():
+    c = color_select()
+    for i in range(len(c)):
+        r,g,b = c[i]
+        c[i] = (r / 255., g / 255., b / 255.)
+
+    return c
+
+def color_select():
+    '''
+    This function is called to generate colors for graphing.
+    Color maps can be found here: 
+    https://tableaufriction.blogspot.com/2012/11/finally-you-can-use-tableau-data-colors.html
+    '''
+    
+    tableau20blind = [(0, 107, 164), (255, 128, 14), (171, 171, 171), (89, 89, 89),
+             (95, 158, 209), (200, 82, 0), (137, 137, 137), (163, 200, 236),
+             (255, 188, 121), (207, 207, 207)]
+    color_blind = [(215,25,28),(253,174,97),(145,191,219),(44,123,182)]
+    return color_blind
+
+def savefig(figname):    
+    plt.savefig("E:\\School\\RutgersWork\\WindAnalysis\\figures\\%s.jpg" %(figname),dpi=2000)  # Need to vary this formatting between graphics.
+    plt.show()       
     
 pd.set_option("display.max_rows", 20)    
 pd.set_option('display.max_columns', None)  
@@ -103,6 +171,10 @@ ASOS,ASOS_year,ASOS_month = read_csv()
 
 
 #spd_calc(ASOS)
-spd_between(ASOS)
-plot_dir(ASOS_year)
-plot_dir(ASOS_month)
+Wind_speed = spd_calc(ASOS)
+Between_speed = spd_between(ASOS)
+
+# plot_dir(ASOS_year)
+# plot_dir(ASOS_month)
+
+plot_spd(Between_speed)
