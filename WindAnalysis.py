@@ -7,6 +7,7 @@ from datetime import datetime
 def read_csv():
   #  data = pd.read_csv('Newark_wind.csv',skiprows=1,parse_dates=[['Date', 'HrMn']],infer_datetime_format=True)
     data = pd.read_csv('Newark_wind.csv',skiprows=1,low_memory=False)
+    data = data[data["Type"] == "FM-15"]
     data['Date'] = pd.to_datetime(data['Date'],format="%Y%m%d")
     data['HrMn']= data['HrMn'].astype(str)
    # data['HrMn']=data['HrMn'].str.pad(width=3,side='right',fillchar='0')
@@ -25,22 +26,41 @@ def read_csv():
 
     data = data.set_index('Date')
     ASOS = data.loc['1997-01-01':'2019-12-31'].copy()
-
-
     ASOS.replace(999.9,np.nan,inplace=True)
     ASOS['Spd'] = ASOS['Spd'] * 2.2369362921                # Converting from m/s to mph
     ASOS['Gust Speed'] = ASOS['Gust Speed'] * 2.2369362921  # Converting from m/s to mph
     print(ASOS)
-    
-    ASOS_year = ASOS.groupby(ASOS.index.year).mean()
-    ASOS_year2 = ASOS.groupby(ASOS.index.year).median()
 
-    ASOS_month = ASOS.groupby(ASOS.index.month).mean()
+# RETURN ASOS DF HERE AND MOVE EVERYTHING BELOW TO A NEW FUCTION!!!
+    
+    
+    ASOS_yearMean = ASOS.groupby(ASOS.index.year).mean()
+    ASOS_yearMean.columns = ['DirMean','SpdMean','GustMean']
+    print(ASOS_yearMean)
+    ASOS_yearMedian = ASOS.groupby(ASOS.index.year).median()
+    ASOS_yearMedian.columns = ['DirMedian','SpdMedian','GustMedian']
+    print(ASOS_yearMedian)
+    
+    ASOS_year = pd.merge(ASOS_yearMean,ASOS_yearMedian,left_index=True,right_index=True)
+
+    ASOS_monthMean = ASOS.groupby(ASOS.index.month).mean()
+    ASOS_monthMean.columns = ['DirMean','SpdMean','GustMean']
+    ASOS_monthMedian = ASOS.groupby(ASOS.index.month).median()
+    ASOS_monthMedian.columns = ['DirMedian','SpdMedian','GustMedian']
+    
+    ASOS_month = pd.merge(ASOS_monthMean,ASOS_monthMedian,left_index=True,right_index=True)
+    
     ASOS_season = month_to_seaon_LUT(ASOS)
-    # print(ASOS_year)
-    # print(ASOS_year2)
+    
+    figname1="Annual Mean and Median"
+#    figname2="YearMedian"
+    figname3="Monthly Mean and Median"
+    figname4="SeasonMean"
+
+    print(ASOS_year)
+  #  print(ASOS_year_median)
     # print(ASOS_month)
-    return ASOS, ASOS_year,ASOS_month
+    return ASOS, ASOS_year,ASOS_month,figname1,figname3,figname4
 
 def spd_calc(df):
     
@@ -87,7 +107,7 @@ def month_to_seaon_LUT(df):
 
 
     
-def plot_dir(df):
+def plot_dir(df,figname):
     '''
     Plotting function for direction.
 
@@ -100,15 +120,21 @@ def plot_dir(df):
     None.
 
     '''
+    df.reset_index(level=0,inplace=True)
+
     plt.rc('font', family='serif')  
     plt.rc('xtick', labelsize='x-small')
     plt.rc('ytick', labelsize='x-small')
     
-    fig, ax = plt.subplots(figsize=(10, 10))  
-    ax.plot(df.index.values,df['Dir'])
+    fig, ax = plt.subplots(dpi=2000)  
+    ax = df.plot(x='Date',y=["DirMean","DirMedian"],kind="line")
     ax.set_ylim(0,360)
+    ax.set_title('Wind Direction: Mean and Median')
+    ax.grid()
 #    plt.xticks(np.arrange(min(x)+1))
-    plt.show()   
+ #   plt.show()
+    figname = figname + "_dir"
+    savefig(figname)
     
 def plot_spd(df):
     df.reset_index(level=0,inplace=True)
@@ -126,8 +152,8 @@ def plot_spd(df):
     ax.set_xlim(1997,2019)
     ax.set_xticks(range(1997,2019,1))
     ax.set_xticklabels(range(1997,2019,1),rotation=45)
-    ax.set_ylim([0,6500])
-    ax.set_yticks(range(0,6500,500))
+    ax.set_ylim([0,4500])
+    ax.set_yticks(range(0,4500,500))
     ax.set_ylabel("Sum of Hours")
     ax.legend(fontsize=8,labelspacing = 0.1)
 
@@ -167,14 +193,16 @@ pd.set_option('display.expand_frame_repr', False)
 pd.set_option('max_colwidth', None)    
 
 
-ASOS,ASOS_year,ASOS_month = read_csv()
+ASOS,ASOS_year,ASOS_month,figname1,figname3,figname4 = read_csv()
 
 
 #spd_calc(ASOS)
 Wind_speed = spd_calc(ASOS)
 Between_speed = spd_between(ASOS)
 
-# plot_dir(ASOS_year)
-# plot_dir(ASOS_month)
+plot_dir(ASOS_year,figname1)
+#plot_dir(ASOS_year,figname2)
+
+plot_dir(ASOS_month,figname3)
 
 plot_spd(Between_speed)
