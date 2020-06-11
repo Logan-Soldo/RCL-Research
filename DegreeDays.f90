@@ -15,15 +15,15 @@
 	  integer Datestring,year,month,MonthDay,day, julian
 
 !	  integer station_num,station_10,station_25,station_50,station_100
-	  real  TMax,TAvg,TMin,Base,yearReal,Tmiss,avg,GDD,W,AnnGDD(6),A
+	  real  TMax,TAvg,TMin,Base,yearReal,Tmiss,avg,GDD(366),W,AnnGDD(6),A,Day_avg(366)
 
 	  ! real GDH(24), GDD(365,24),Daily_GDD(365),total_GDD(80),Base,total_100(80)
 	  ! real total_GDH(80)
 
 	 character(len=11) Station,Station_type
 	 character(len=2) State
-	 character(len=500) :: data_input,inputfile, outputfile, outputfile2,outputfile3,outputfile4,outputfile5
-	  namelist /cdh_nml/ inputfile,outputfile, outputfile2,outputfile3,outputfile4,outputfile5,Base
+	 character(len=500) :: data_input,inputfile, outputfile, outputfile2,outputfile3,outputfile4,outputfile5,outputfile6
+	  namelist /cdh_nml/ inputfile,outputfile, outputfile2,outputfile3,outputfile4,outputfile5,outputfile6,Base
 
 open(33,file='cdh.nml',status='old')
 read(33,nml=cdh_nml,end=55)
@@ -35,9 +35,10 @@ write(*,nml=cdh_nml)
 	  open(10, file=inputfile,status="old")
 	  open(20, file=outputfile,status="replace")      ! Split Date
 	  open(30, file=outputfile2,status="replace")	  ! Annual GDD
-	  open(40, file=outputfile3,status="replace")	  ! Daily GDD	
-	  open(100, file=outputfile4,status="replace")	  ! Stats	  
-	  Open(200,file=outputfile5, status = "replace")
+	  open(40, file=outputfile3,status="replace")	  ! Daily GDD
+	  open(50, file=outputfile4,status="replace")	  ! Daily Avg
+	  open(100,file=outputfile5,status="replace")	  ! Stats	  
+	  Open(200,file=outputfile6, status = "replace")
 		
  do k=1,6
 	AnnGDD(k) = 0
@@ -50,9 +51,11 @@ Tmiss = 999
 		Do m=1,100000
 	!			print(200)
 				read(10,*,end=15) Station,State,Datestring,Station_type,TMax,TMin,TAvg
-				TMax = (TMax-32)/1.8
-				TMin = (TMin-32)/1.8
-				TAvg = (TAvg-32)/1.8
+				if (TAVG .ne. Tmiss) then
+					TMax = (TMax-32)/1.8
+					TMin = (TMin-32)/1.8
+					TAvg = (TAvg-32)/1.8
+				endif
 			!	read(10,*,end=15) data_input
 			!	write(20,*) Station,State,Datestring,Station_type,TMax,TMin,TAvg
 	!			write(*,*) State
@@ -91,91 +94,44 @@ Tmiss = 999
 	do k = 1,6	
 		do i = 1,366
 			read(20,1100,end=16) Station,State,Station_type,Datestring,year,month,day,julian,TMax,TMin,TAvg
-			if (TAvg .eq. TMiss) then
+			if (TAvg .ne. TMiss) then
+				if (TAvg .ne. 999.00) then
+					if (TMax .GT. Base) then
+						avg = (TMax + TMin)/2
+						if (TMin .ge. Base) then
+							GDD(i) = avg - Base
+						else
+							W=(TMax-TMin)/2
+							A=ASIN((Base-avg)/W)
+							GDD(i)=(W*COS(A)-(Base-Avg)*(3.14/2-A))/3.14
+						endif
+					else
+						GDD(i) = 0
+					endif
+				endif
+			
+				AnnGDD(k) = AnnGDD(k) + GDD(i)
+			else
 				miss_total = miss_total + 1
 			endif
-			if (TAvg .ne. 999.00) then
-				if (TMax .GT. Base) then
-					avg = (TMax + TMin)/2
-					if (TMin .ge. Base) then
-						GDD = avg - Base
-					else
-						W=(TMax-TMin)/2
-						A=ASIN((Base-avg)/W)
-						GDD=(W*COS(A)-(Base-Avg)*(3.14/2-A))/3.14
-					endif
-				else
-					GDD = 0
-				endif
-			endif
-			
-			AnnGDD(k) = AnnGDD(k) + GDD
+
 			
 			write(40,*) Station, Station_type, Datestring,year,month,day,julian,AnnGDD(k)
 
 		enddo
 		write(30,*) year,k,AnnGDD(k)
 	enddo
-	
-16 close(20)
-	
-	write(100,*) "Missing Total", miss_total
-		
-		! !	Checking if the day is in the suberization period	  
-		    ! if ((dayofyear .ge. iStartDay) .and. (dayofyear .lt. iStartCoolDown)) then 
-              ! IF(tmax .GT. suberthreshold) THEN
-                ! AVG=(tmax +tmin )/2
-                   ! IF(tmin .LT.suberthreshold) THEN
-                      ! W=(tmax -tmin )/2
-                      ! A=ASIN((suberthreshold-AVG)/W)
-                      ! SDD=(W*COS(A)-(suberthreshold-AVG)*(3.14/2-A))/3.14
-                   ! ELSE
-                      ! SDD=AVG-suberthreshold
-                   ! ENDIF
-              ! ELSE
-               ! SDD=0
-              ! ENDIF
-			  
-! !   Checking if past suberization and the cooldown period
-		    ! ElseIf ((dayofyear .ge. iStartCoolDown) .and. (dayofyear .lt. iStartHolding)) then
-		     ! coolingthreshold = (suberthreshold - ((dayofyear-iStartCoolDown)*0.1))
-	          ! IF(tmax .GT. coolingthreshold) THEN
-                ! AVG=(tmax +tmin )/2
-                   ! IF(tmin .LT.coolingthreshold) THEN
-                      ! W=(tmax -tmin )/2
-                      ! A=ASIN((coolingthreshold-AVG)/W)
-                      ! SDD=(W*COS(A)-(coolingthreshold-AVG)*(3.14/2-A))/3.14
-                   ! ELSE
-                      ! SDD=AVG-coolingthreshold
-                   ! ENDIF
-              ! ELSE
-               ! SDD=0
-              ! ENDIF
-			  
-! !  Checking if in holding period	  
-            ! Elseif(dayofyear .ge. iStartHolding) then
-	           ! IF(tmax .GT. holdingthreshold) THEN
-                ! AVG=(tmax +tmin )/2
-                   ! IF(tmin .LT.holdingthreshold) THEN
-                      ! W=(tmax -tmin )/2
-                      ! A=ASIN((holdingthreshold-AVG)/W)
-                      ! SDD=(W*COS(A)-(holdingthreshold-AVG)*(3.14/2-A))/3.14
-                   ! ELSE
-                      ! SDD=AVG-holdingthreshold
-                   ! ENDIF
-                ! ELSE
-                   ! SDD=0
-                ! ENDIF
-			! Endif	
-			
-		 ! SDDDailyNOCUM(DayCounter,YearCounter)=SDD
-		 ! SDDCUM=SDDCUM+SDD
-		 ! SDDDaily(DayCounter,YearCounter)=SDDCUM
+16 	close(20)
 
-	      ! endif
-		
-		
-		! enddo
+	write(100,*) "Missing Total", miss_total
+	
+	!!!!! TO DO: Get the daily average degree days. i.e. average GDD on July 2nd.!!!!!!!
+	! do k = 1,6
+		! do i = 1,366
+	do i = 1,366
+		Day_avg(i) = sum(GDD,i)/k
+		write(50,*) Station, Station_type, julian, Day_avg(i)
+	enddo			
 
 
 1000 format(a11,a4,I8,a11,3(f10.2))
