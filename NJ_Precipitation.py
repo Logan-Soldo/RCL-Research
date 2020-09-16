@@ -41,11 +41,12 @@ def data_analysis(df,station):
 
     '''
     df=df.set_index('DATE')
+    
     total_precip = df.groupby(df.index.year).sum()
     calc = 'Total Precipitation'
     
     
-   # print(total_precip)
+    # print(total_precip)
     plotting(total_precip,calc,station)                 # Plotting Total Precip
     
     df.reset_index(level=0,inplace=True)    
@@ -53,10 +54,10 @@ def data_analysis(df,station):
     
     # Precip_events(df,station)
     
-   # rolling_mean(df,station)
+    # rolling_mean(df,station)
     
-    month_to_season_LUT(df,station)
-
+    month_to_season_LUT(df,station,calc)
+    
     dry_intervals(df,station)
     
     cumulative_precip(df,station)
@@ -86,7 +87,11 @@ def binning(df,station):
     bins['≥ 1.00'] = np.where((df['PRCP'] >= 1.00),1,0)
     bins['≥ 2.00'] = np.where((df['PRCP'] >= 2.00),1,0)
    
-
+# SEASONAL CALCULATION HERE?
+    calc = 'Days With Precipitiation'
+    month_to_season_LUT(bins,station,calc)
+    
+    
     bins = bins.set_index('DATE')     
     group = bins.groupby(bins.index.year).cumsum()  # accumulating days above a base value throughout the year
     calc = 'Bin Progression'
@@ -95,6 +100,8 @@ def binning(df,station):
     yearly_bin = bins.groupby(bins.index.year).sum() # sum of days above base by year
     calc = 'Days Above Base (in)'
     plotting(yearly_bin,calc,station)
+
+
 
     percent = pd.DataFrame()   # Calculating percentage of precip days above base.
     calc = "Precentage of Precipitation Days At/Above Base (in)"
@@ -158,42 +165,45 @@ def dry_intervals(df,station):
         
         
         dry_spell.plot(x='DATE',y='dry_count',ax=ax,kind='hist',alpha=0.7)
-    # ax.xaxis.set_major_locator(ticker.MultipleLocator(365))
-    # ax.xaxis.set_minor_locator(ticker.MultipleLocator(100))
-    
-    # fmtr = ticker.IndexFormatter(range(1950,2021))
-    # ax.xaxis.set_major_formatter(fmtr) 
-    # plt.tight_layout() 
-# #    dry_spells = 
-#     plt.show()
+
 
 def cumulative_precip(df,station):
     '''
     This function counts how many days it takes to get to precip of x magnitude.
 
     '''
-   # cumsum = pd.DataFrame(df['DATE'])
-    df = df.set_index('DATE')
-    cumsum = df.groupby(df.index.year)["PRCP"].cumsum()
-    cumsum = cumsum.reset_index()
-    cumsum['Day'] = cumsum['DATE'].dt.dayofyear
-    df2 = cumsum[['DATE','PRCP','Day']]                 # Copying pandas dataframe instead of using a pandas series. VERY IMPORTANT.
-    df2 = df2.set_index('DATE')
-    
-    df2['1in'] = df2[df2['PRCP'] >= 1.0]['Day']
-    df2['5in'] = df2[df2['PRCP'] >= 5.0]['Day']
-    df2['10in'] = df2[df2['PRCP'] >= 10.0]['Day']
-    df2['20in'] = df2[df2['PRCP'] >= 20.0]['Day']
-    df2['40in'] = df2[df2['PRCP'] >= 40.0]['Day']
-    
-    df2 = df2.groupby(df2.index.year).first().reset_index()
-    df2=df2.drop(columns=['PRCP','Day'])
-    print(df2)
-    calc = 'Days to Accumulate x in'
-    plotting(df2,calc,station)
+
+    depth_list = [1.0,4.0,10.0,20.0]        # various threshold depths to reach.
+    df_j = pd.DataFrame(df['DATE'])         # creating an empty dataframe with DATE as the index
+    for d in depth_list:
+        j_list = []                         # starting an empty list for each threshold depth
+        count1 = 0                          # adding in a 365 day counter assuming it does not take more than a year to accumulate.
+        count2 = 366
+        for i in df['DATE']:                # looping through i values after looping through Precipitation values from count1 to count2
+            j_sum = 0                       # reset sums
+            j_count = 0
+            for j in df['PRCP'][count1:count2]:  
+                j_count = j_count + 1
+                j_sum = j_sum + j
+                if j_sum >= d:              # Checking if value is greater than threshold.
+                    j_list.append(j_count)
+                    break                   # break out of loop when value is reached.
+            count1 += 1
+            count2 += 1
+        
+        df_j[d] = pd.DataFrame(j_list)          # Putting list into a dataframe with dates as the index knowing they are the same length
+    df_join = df_j.set_index('DATE')    
+    df_daymean = df_join.groupby(df_join.index.dayofyear).mean()        # Grouping by day of the year and taking the mean.
+    print(df_daymean)
 
     
 def plotting(df,calc,station):
+    '''
+    All functions that require plots come here for plotting. 
+    They must bring in a DataFrame, the calculation string and station name.
+    
+    Formatting of the table is conducted in the "plot format" section.
+    '''
     
     c = color_select()
     for i in range(len(c)):
@@ -202,19 +212,23 @@ def plotting(df,calc,station):
         
     df.reset_index(level=0,inplace=True)
     if calc == 'Total Precipitation':                   # Plotting the total Precipitation per year.
-        _,ax = plt.subplots()
         width = 0.70
         stat_calc = 'PRCP'
 #        lin_r = stats.pearsonr(x,df['PRCP'])
-        df= statistics(df,stat_calc)
-
-        
+        reg = statistics(df,stat_calc,station,calc)
+        _,ax = plt.subplots()
         df['PRCP'].plot(ax=ax,width=width,kind='bar',color=c[4])
-        df['y_reg_pre'].plot(ax=ax,color="black",linewidth="1.5",linestyle="dashed")
-        df['y_reg_post'].plot(ax=ax,color="black",linewidth="1.5",linestyle="dashed")
-        
+        print(df)
+         #   print(slope_df)
+        reg = reg.reset_index(drop=True)
+        reg.plot(ax=ax,color="black",linewidth="0.40",linestyle="dashed")
+
         plot_format(ax,station,calc)
+        
         savefig(station,calc)
+
+
+
     if calc == 'Days Above Base (in)':    # sum of days above base by year
         _,ax = plt.subplots()
         width = 0.70
@@ -228,15 +242,18 @@ def plotting(df,calc,station):
         plot_format(ax,station,calc)
         savefig(station, calc)
 
-
-        _,ax2 = plt.subplots()                          # Plotting only the number of days with precip above 0.0.
-        calc = 'Days With Precipitation'
         stat_calc = ">0.0"
-        df = statistics(df,stat_calc)
+        reg = statistics(df,stat_calc,station,calc)
+
+        fig,ax2 = plt.subplots()                          # Plotting only the number of days with precip above 0.0.
+        calc = 'Days With Precipitation'
         
-        df['y_reg_pre'].plot(ax=ax2,color='black',linewidth="1.5",linestyle="dashed")
-        df['y_reg_post'].plot(ax=ax2,color='black',linewidth="1.5",linestyle="dashed")
+         #   print(slope_df)
+        reg = reg.reset_index(drop=True)
+        reg.plot(ax=ax2,color="black",linewidth="0.40",linestyle="dashed")
+
         df['>0.0'].plot(ax=ax2,kind='bar',width=width,color='blue')
+
         
         plot_format(ax2,station,calc)
 
@@ -262,24 +279,45 @@ def plotting(df,calc,station):
         plot_format(ax,station,calc)        
         savefig(station, calc)
 
-    if calc == "Seasonal Precipitation Totals":
+    if calc == "Seasonal Precipitation Totals" or calc == "Seasonal Days With Precipitation":
+        supcalc = calc
+        temp_calc = ['DJF','MAM','JJA','SON']
+        reg_list = []
+        for i in temp_calc:
+            reg = statistics(df,i,station,calc)
+            reg = reg.reset_index(drop=True)
+            reg_list.append(reg)
+
         fig,axes = plt.subplots(2, 2,constrained_layout=True)
         fig.suptitle('%s: %s'%(station,calc))
-        #_,ax = plt.subplots()
         width = 0.70
-      #  df.plot('DATE',y=['DJF','MAM','JJA','SON'],width=width,ax=ax,kind='bar',color=[c[0],c[1],c[2],c[3]])
-        # df.plot('DATE',y='DJF',width=width,ax=axes[0,0],kind='bar',color='gray')
-        # df.plot('DATE',y='MAM',width=width,ax=axes[0,1],kind='bar',color='gray')
-        # df.plot('DATE',y='JJA',width=width,ax=axes[1,0],kind='bar',color='gray')
-        # df.plot('DATE',y='SON',width=width,ax=axes[1,1],kind='bar',color='gray')
-        df.plot('DATE',y='JFM',width=width,ax=axes[0,0],kind='bar',color='gray')
-        df.plot('DATE',y='AMJ',width=width,ax=axes[0,1],kind='bar',color='gray')
-        df.plot('DATE',y='JAS',width=width,ax=axes[1,0],kind='bar',color='gray')
-        df.plot('DATE',y='OND',width=width,ax=axes[1,1],kind='bar',color='gray')
+        df.plot('DATE',y='DJF',width=width,ax=axes[0,0],kind='bar',color='gray',label = 'Dec-Jan-Feb')
+        df.plot('DATE',y='MAM',width=width,ax=axes[0,1],kind='bar',color='gray',label = 'Mar-Apr-May')
+        df.plot('DATE',y='JJA',width=width,ax=axes[1,0],kind='bar',color='gray',label = 'Jun-Jul-Aug')
+        df.plot('DATE',y='SON',width=width,ax=axes[1,1],kind='bar',color='gray',label = 'Sep-Oct-Nov')
+
+        
         for i,ax in enumerate(fig.axes):
-            calc = ['JFM','AMJ','JAS','OND']
-            plot_format(ax,station,calc[i])
-        savefig(station,calc)
+            if calc == 'Seasonal Days With Precipitation':
+                ax.set_ylabel('Days')
+            else:
+                ax.set_ylabel('Precipitation (in)')
+                
+            subtitle = ['Dec-Jan-Feb','Mar-Apr-May','Jun-Jul-Aug','Sep-Oct-Nov']
+            temp_calc = ['DJF','MAM','JJA','SON']
+
+
+            reg = reg_list[i].plot(ax=ax,color="black",linewidth="0.25",linestyle="dashed")
+    
+            plot_format(ax,station,calc)
+            
+            
+            plot_format(ax,station,temp_calc[i])
+            ax.set_title(subtitle[i])
+
+        savefig(station,supcalc)
+        
+        
 
     if calc == 'Days to Accumulate x in':
         fig,axes = plt.subplots(2, 2,constrained_layout=True)
@@ -293,13 +331,14 @@ def plotting(df,calc,station):
         for i,ax in enumerate(fig.axes):
             calc = ['1in','5in','10in','20in']#,'40in']
             plot_format(ax,station,calc[i])
+        savefig(station,calc)
 
 
 def plot_format(ax,station,calc):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
     
-    fmtr = ticker.IndexFormatter(range(1950,2021))
+    fmtr = ticker.IndexFormatter(range(1950,2020))
     ax.xaxis.set_major_formatter(fmtr)   
     ylim = ax.get_ylim()
     ymax = round_up(ylim[1],-1)
@@ -342,73 +381,122 @@ def plot_format(ax,station,calc):
         ax.set_ylabel("Days")
         ax.set_ylim([0,15])
         ax.set_title('%s: Maximum Consecutive Days \n with Precipitation'%(station))
-    elif (calc == "JFM") or (calc == "AMJ") or (calc == "JAS") or (calc == "OND"):
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
-        ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))         
-        ax.set_ylim([0,30])
+    elif (calc == "DJF") or (calc == "MAM") or (calc == "JJA") or (calc == "SON"):
+        if ymax <= 30:            
+            ax.set_ylim([0,30])
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+            ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
+        else:
+            ax.set_ylim([10,60])
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
+            ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+        
+        ax.set_xticklabels(labels=range(1945,2020,5),rotation=90)
         ax.legend().set_visible(False)
-        ax.set_ylabel('Precipitation (in)')
+        # ax.xaxis.set_tick_params(labelsize=8)
+        # ax.yaxis.set_tick_params(labelsize=8)
         ax.set_title('%s'%calc)
+        
     elif (calc =='1in') or (calc =='5in') or (calc =='10in') or (calc =='20in'):#,'40in']
         tick_calc = ymax/5
         minor_TC= tick_calc/4
         ax.yaxis.set_major_locator(ticker.MultipleLocator(tick_calc))
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(minor_TC))  
-   #     ax.set_ylim([1,365])
         ax.set_title('%s'%calc)
         ax.legend().set_visible(False)
         ax.set_ylabel('Days')
        
 
       
-    ax.tick_params(axis='both', which='major', labelsize=10) 
-#  ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),fontsize=8)
+    ax.tick_params(axis='both', which='major', labelsize=8) 
     ax.xaxis.label.set_visible(False)    
 
-def statistics(df,stat_calc):
+def statistics(df,stat_calc,station,calc):
 
         x=df['DATE'].values
-        # regress = linregress(x,df[stat_calc])           # problem with using datetime
-        # regress_pre = linregress(x[:50],df[stat_calc][:50])
-        # regress_post = linregress(x[49:],df[stat_calc][49:])
-        # print(regress_pre)
+
+        reg_list = []
+        slope_list = []
+        reg_df = pd.DataFrame(x)
+        reg_df=reg_df.set_index(x,inplace=True,drop=True)
+        stat_list = []
+        count= 0
+        count2=31
+        for i in range(1,41):
+            lin_m,lin_b,r_value,p_value,stderr = linregress(x[count:count2],df[stat_calc][count:count2])
+            
+            regress = lin_m*x[count:count2] + lin_b
+            slope = float('{:.2f}'.format(lin_m))
+            pval = '{:.2f}'.format(round(p_value,2))
+            stderr = '{:.2f}'.format(round(stderr,2))
+
+            
+            slope_df = pd.DataFrame(regress,x[count:count2])            
+            stat_list.append(slope_df)
+            year_range = str(count+1950) + "-" + str(count2+1949)
+            reg_list.append([year_range,slope,pval,stderr])
+            slope_list.append([x[count:count2],regress])
+            
+            count += 1
+            count2 += 1
+            
+        stats_df = pd.DataFrame(reg_list, columns = ["Year","Slope","P-value","Std Error"])
+        stats_df = stats_df.sort_values(by="Slope",ascending=False,ignore_index=True)            # Negatives are being plotted in a weird way.
+        stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
         
-        lin_m,lin_b,r_value,p_value,stderr = linregress(x[:50],df[stat_calc][:50])
-        df['y_reg_pre'] = np.where((df['DATE'] <= 1999),lin_m*x+lin_b,np.nan)
+
+        stats_save = calc       
+        reg_df = pd.concat(stat_list,axis=1)
+        reg_df.columns = range(reg_df.shape[1])
+        fig2, ax3 =plt.subplots(1)
+        ax3.axis('tight')
+        ax3.axis('off')        
+        stat_table = ax3.table(cellText=stats_df.values,colLabels=stats_df.columns,loc='center')
+        for f in stats_df["Year"]:
+            if int(f[0:4]) >= 1980:
+                row = stats_df[stats_df['Year']==f].index.item()
+                stat_table[row+1,0].set_facecolor('#FFFF00')
+                stat_table[row+1,1].set_facecolor('#FFFF00')
+                stat_table[row+1,2].set_facecolor('#FFFF00')
+                stat_table[row+1,3].set_facecolor('#FFFF00')
+        savetable(station,stats_save,stat_calc)
         
-        
-        lin_m,lin_b,r_value,p_value,stderr = linregress(x[49:],df[stat_calc][49:])     
-        df['y_reg_post'] = np.where((df['DATE'] >= 1999),lin_m*x+lin_b,np.nan)
-     
-        print(df)
-        return df#,pval
+        return reg_df
+            
 
 
-def month_to_season_LUT(df,station):
+
+def month_to_season_LUT(df,station,calc):
+    df['Year'] = pd.DatetimeIndex(df['DATE']).year
+    df['Month'] = pd.DatetimeIndex(df['DATE']).month
+    df['Year'] = np.where(df['Month'] == 12, df['Year'] +1,df['Year'])
     df=df.set_index('DATE')
-#     month_to_season_lu = np.array([
-#     None,
-#     'DJF', 'DJF',
-#     'MAM', 'MAM', 'MAM',
-#     'JJA', 'JJA', 'JJA',
-#     'SON', 'SON', 'SON',
-#     'DJF'
-# ])
-    
     month_to_season_lu = np.array([
     None,
-    'JFM', 'JFM',
-    'JFM', 'AMJ', 'AMJ',
-    'AMJ', 'JAS', 'JAS',
-    'JAS', 'OND', 'OND',
-    'OND'
+    'DJF', 'DJF',
+    'MAM', 'MAM', 'MAM',
+    'JJA', 'JJA', 'JJA',
+    'SON', 'SON', 'SON',
+    'DJF'
 ])
-    grp_ary = month_to_season_lu[df.index.month]
     
-    season = df.groupby([df.index.year,grp_ary])['PRCP'].sum()
+
+    grp_ary = month_to_season_lu[df.index.month]            # currently groups by same year so December xx00 is not in Seasonal xx01.
+ #   print(grp_ary)
+    if calc == 'Total Precipitation':
+        season = df.groupby([df['Year'],grp_ary])['PRCP'].sum()
+        calc = "Seasonal Precipitation Totals"
+        
+    elif calc == 'Days With Precipitiation':
+        season = df.groupby([df['Year'],grp_ary])['>0.0'].sum()
+        calc = "Seasonal Days With Precipitation"
+
+
     unstack = season.unstack()
+#    unstack = season.reset_index()
+    unstack.index.names = ['DATE']
+    unstack = unstack[1:-1]
     print(unstack)
-    calc = "Seasonal Precipitation Totals"
     plotting(unstack,calc,station)
 
 
@@ -432,13 +520,21 @@ def round_up(n,decimals=0):
     return math.ceil(n*multiplier)/multiplier
 
 def savefig(station,calc):    
-    print("Saving Plot...")
+    print("Saving Plot...",calc)  
+    plt.draw()
 #    plt.savefig("E:\\School\\RutgersWork\\DegreeDayAnalysis\\Plots\\%s\\%s%s%s.svg" %(time,time,base,method),format='svg')  # Need to vary this formatting between graphics.
     plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s%s.jpg"%(station,calc[:10]),format='jpg',dpi=600,bbox_inches='tight')    
     plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s%s.tif"%(station,calc[:10]),format='tif',dpi=600,bbox_inches='tight')    
     plt.show()
-    print("Plot Saved!")  
-    
+    print("Plot Saved!")
+
+def savetable(station,calc,stat_calc):
+    print("Saving Table...",calc)
+    plt.draw()
+    if calc == "Seasonal Days With Precipitation" or calc == "Seasonal Precipitation Totals":
+        plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\Tables\\%s%s%s_Table.jpg"%(station[:6],stat_calc,calc[:14]),format='jpg',dpi=600,bbox_inches='tight')   
+    else:
+        plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\Tables\\%s%s_Table.jpg"%(station[:6],calc[:14]),format='jpg',dpi=600,bbox_inches='tight')   
 def main():
     station = 'New Brunswick'
     data = read_file(station)
