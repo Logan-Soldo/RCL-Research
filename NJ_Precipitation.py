@@ -403,7 +403,7 @@ def plotting(df,calc,station):
         depths = ['0.00in','0.10in','0.25in','0.50in']
         cords = [(0,0),(0,1),(1,0),(1,1)]
         count =0
-        fig.suptitle("%s: %s Frequency"%(station,calc))
+        fig.suptitle("%s: %s Distribution"%(station,calc))
         for i in df[depths]:
             bins=np.arange(int(np.nanmin(df[i])), int(np.nanmax(df[i])) + 1, 1)
         # df.plot(x='DATE',y='0.50in',ax=ax,kind='hist',alpha=0.7,color = 'dimgray')
@@ -420,7 +420,6 @@ def plotting(df,calc,station):
             ax.yaxis.set_minor_locator(ticker.MultipleLocator(ymax/10))
             ax.set_ylabel("Number of Occurrences")
 
-            print(ymax)
             ax.set_ylim(0,ymax)
 
         savefig(station,calc)
@@ -529,11 +528,13 @@ def statistics(df,stat_calc,station,calc):
         reg_list = []
         slope_list = []
         reg_df = pd.DataFrame(x)
+        total_years = len(reg_df.index)
         reg_df=reg_df.set_index(x,inplace=True,drop=True)
         stat_list = []
         count= 0
         count2=31
-        for i in range(1,41):
+
+        for i in range(1,total_years-29):
             lin_m,lin_b,r_value,p_value,stderr = linregress(x[count:count2],df[stat_calc][count:count2])
             kTau,p_value = stats.kendalltau(x[count:count2],df[stat_calc][count:count2])           # Different way of showing significance.
             
