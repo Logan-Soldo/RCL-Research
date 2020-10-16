@@ -22,19 +22,26 @@ def read_file(station):
     print(station)
     while True:
         try:
-            data = pd.read_csv('E:\School\RutgersWork\DEP_Precip\Stations\%s.csv'%(station),parse_dates=['DATE'],infer_datetime_format=True,na_values=" ").fillna(0)
+            data = pd.read_csv('E:\School\RutgersWork\DEP_Precip\Stations\%s.csv'%(station),parse_dates=['DATE'],infer_datetime_format=True,na_values=[" "," S"," T"," M"]).fillna(0)
         #    print(data)
-            data['PRCP'] = pd.to_numeric(data.PRCP,errors='coerce')
-            data = data.set_index(['DATE'])
-            data = data.loc['1950-01-01':'2019-12-31']        # 70 year period of record...
-  #          data = data.loc['1900-01-01':'2019-12-31']        # Extended long term period of record...
-            data.reset_index(level=0,inplace=True)
-            print(data[['DATE','PRCP']])
-            return data[['DATE','PRCP']]
+     #       data = data.replace('S',0)
+
         except:
             print("Problem Finding File. Exiting")
             break
+        
+        data['PRCP'] = data['PRCP'].astype(str)
+   #     data = data.PRCP.str.extract(r'(?P<PRCP>[0-9.0-9]*)(?P<STR>[A]{0,1})',expand=True)
+        data['PRCP'] =  data['PRCP'].str.extract('([+-.0-9]+)(.*)').rename(columns={0:'PRCP', 1:'UNIT'})
+        data.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")          
 
+        data['PRCP'] = pd.to_numeric(data.PRCP,errors='coerce')
+        data = data.set_index(['DATE'])
+     #   data = data.loc['1950-01-01':'2019-12-31']        # 70 year period of record...
+        data = data.loc['1900-01-01':'2019-12-31']        # Extended long term period of record...
+        data.reset_index(level=0,inplace=True)
+        print(data[['DATE','PRCP']])
+        return data[['DATE','PRCP']]
 def data_analysis(df,station):
     '''
     Reads in a dataframe and a station specified in main.
@@ -53,11 +60,11 @@ def data_analysis(df,station):
     
     df.reset_index(level=0,inplace=True)   
     
-    # bins = binning(df,station)              # Dividing data into bins and then plotting. Calculations are the number of days above x.
+    bins = binning(df,station)              # Dividing data into bins and then plotting. Calculations are the number of days above x.
    
-    # month_to_season_LUT(df,station,calc)    # For seasonal calculations
+    month_to_season_LUT(df,station,calc)    # For seasonal calculations
     
-    # dry_intervals(df,station)
+#    dry_intervals(df,station)
     
  #   cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
  
@@ -158,9 +165,11 @@ def dry_intervals(df,station):
     dry_list = []
     calc = "Dry Intervals"
  #   _,ax = plt.subplots()
-    base_list = [0.5,0.25,0.1,0.0]
-    base_string =['0.50in','0.25in','0.10in','0.00in']
+    base_list = [1.0,0.5,0.25,0.1]
+    base_string =['1.0in','0.50in','0.25in','0.10in']
+ #   print(df)
     for base in base_list:
+   #     print(base)
         dry_intervals['Precip Days'] = np.where((dry_intervals['PRCP'] > base),1,0)     # Changing minimum depth to end "dry spell"
         dry_intervals['Count'] = np.where(dry_intervals['Precip Days'].eq(0),
                                           dry_intervals.groupby(dry_intervals['Precip Days'].ne(dry_intervals['Precip Days'].
@@ -169,20 +178,26 @@ def dry_intervals(df,station):
         dry_intervals['dry_count'] = np.where(dry_intervals['dry_spells'].eq(0),
                                           dry_intervals.groupby(dry_intervals['dry_spells'].ne(dry_intervals['dry_spells'].
                                                                                                 shift()).cumsum()).cumcount() +1,np.nan)
+     #   print(dry_intervals)
+          
+        
+
         key1 = dry_intervals.assign(
             key1=dry_intervals.groupby(dry_intervals["dry_count"].isnull())["dry_count"].transform("cumcount").cumsum()
-        ).groupby("key1")["dry_count"].max()
+        ).groupby("key1")["dry_count"].max()                #Issues here with the 1900 runs for 0.0in
+     #   print(key1)
         key2 = dry_intervals.assign(
             key1=dry_intervals.groupby(dry_intervals["dry_count"].isnull())["dry_count"].transform("cumcount").cumsum()
         ).groupby("key1")["DATE"].max().dropna()
-    
+    #    print(key2)            
+            
         dry_spell = pd.concat([key2,key1],axis=1).reset_index()
         dry_spell = dry_spell.drop(columns='key1')
         dry_spell = dry_spell.set_index('DATE')
         dry_list.append(dry_spell)
     dry_df = pd.concat(dry_list,axis=1)
     dry_df.columns = base_string
-        
+    dry_df.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")          
     print(dry_df)
     plotting(dry_df,calc,station)
     #dry_spell.plot(x='DATE',y='dry_count',ax=ax,kind='hist',alpha=0.7)
@@ -330,7 +345,10 @@ def plotting(df,calc,station):
             reg_list.append(reg)
 
         fig,axes = plt.subplots(2, 2,constrained_layout=True)
-        fig.suptitle('%s: %s ≥ 0.1in'%(station,calc))
+        if calc == "Seasonal Precipitation Totals":
+            fig.suptitle('%s: %s'%(station,calc))
+        if calc == "Seasonal Days With Precipitation":
+            fig.suptitle('%s: %s ≥ 0.1in'%(station,calc))
         width = 0.70
         df.plot('DATE',y='DJF',width=width,ax=axes[0,0],kind='bar',color='black',label = 'Dec-Jan-Feb',alpha=0.50)
         df.plot('DATE',y='MAM',width=width,ax=axes[0,1],kind='bar',color='black',label = 'Mar-Apr-May',alpha=0.50)
@@ -369,35 +387,24 @@ def plotting(df,calc,station):
         
         axes[0,0].plot(df['DATE'],df['0.5in'],color='blue')
       #  axes[0,0].fill_between(df['DATE'],df['Up 0.5in'],df['Low 0.5in'],alpha=0.35,color='black')
-
         axes[0,1].plot(df['DATE'],df['1.0in'],color='blue')
-      #  axes[0,1].fill_between(df['DATE'],df['Up 1.0in'],df['Low 1.0in'],alpha=0.35,color='black')
-        
+      #  axes[0,1].fill_between(df['DATE'],df['Up 1.0in'],df['Low 1.0in'],alpha=0.35,color='black')        
         axes[1,0].plot(df['DATE'],df['2.0in'],color='blue')
-      #  axes[1,0].fill_between(df['DATE'],df['Up 2.0in'],df['Low 2.0in'],alpha=0.35,color='black')
-        
+      #  axes[1,0].fill_between(df['DATE'],df['Up 2.0in'],df['Low 2.0in'],alpha=0.35,color='black')        
         axes[1,1].plot(df['DATE'],df['4.0in'],color='blue')
-      #  axes[1,1].fill_between(df['DATE'],df['Up 4.0in'],df['Low 4.0in'],alpha=0.35,color='black')
-        
+      #  axes[1,1].fill_between(df['DATE'],df['Up 4.0in'],df['Low 4.0in'],alpha=0.35,color='black')        
         axes[2,0].plot(df['DATE'],df['10.0in'],color='blue')
-      #  axes[2,0].fill_between(df['DATE'],df['Up 10.0in'],df['Low 10.0in'],alpha=0.35,color='black')
-        
+      #  axes[2,0].fill_between(df['DATE'],df['Up 10.0in'],df['Low 10.0in'],alpha=0.35,color='black')        
         axes[2,1].plot(df['DATE'],df['20.0in'],color='blue')
       #  axes[2,1].fill_between(df['DATE'],df['Up 20.0in'],df['Low 20.0in'],alpha=0.35,color='black')
         # fig,axes = plt.subplots(3, 2,constrained_layout=True)#,sharex=True)
-        # fig.suptitle('%s: %s'%(station,calc),fontsize=10)
-        
+        # fig.suptitle('%s: %s'%(station,calc),fontsize=10)        
         # df.plot(x='DATE',y='0.5in',kind= 'line',ax=axes[0,0],color='blue')
         # df.fill_between('DATE','Up 0.5in','low 0.5in',ax=axes[0,0],alpha=0.35,linewidth=0,color='black')
-
-        # df.plot(x='DATE',y='1.0in',kind= 'line',ax=axes[0,1],color='blue')        
-        
-        # df.plot(x='DATE',y='2.0in',kind= 'line',ax=axes[1,0],color='blue')
-        
-        # df.plot(x='DATE',y='4.0in',kind= 'line',ax=axes[1,1],color='blue')
-        
-        # df.plot(x='DATE',y='10.0in',kind= 'line',ax=axes[2,0],color='blue')
-        
+        # df.plot(x='DATE',y='1.0in',kind= 'line',ax=axes[0,1],color='blue')                
+        # df.plot(x='DATE',y='2.0in',kind= 'line',ax=axes[1,0],color='blue')        
+        # df.plot(x='DATE',y='4.0in',kind= 'line',ax=axes[1,1],color='blue')        
+        # df.plot(x='DATE',y='10.0in',kind= 'line',ax=axes[2,0],color='blue')        
         # df.plot(x='DATE',y='20.0in',kind= 'line',ax=axes[2,1],color='blue')
 
         for i,ax in enumerate(fig.axes):
@@ -408,36 +415,37 @@ def plotting(df,calc,station):
     
     if calc == "Dry Intervals":             # Three separate plots
         fig,axes = plt.subplots(2,2,constrained_layout=True)
-        depths =['0.50in','0.25in','0.00in']
-        depths = ['0.00in','0.10in','0.25in','0.50in']
+#        depths =['0.50in','0.25in','0.00in']
+        depths = ['0.10in','0.25in','0.50in','1.0in']
         cords = [(0,0),(0,1),(1,0),(1,1)]
         count =0
-        fig.suptitle("%s: %s Distribution"%(station,calc))
-        print(df)
-        data = df.loc['1980-01-01':'2019-12-31']
-        
-        for i in df[depths]:
-            bins=np.arange(int(np.nanmin(df[i])), int(np.nanmax(df[i])) + 1, 1)
-            # print(i)
-            # print(df[depths])
 
-        # df.plot(x='DATE',y='0.50in',ax=ax,kind='hist',alpha=0.7,color = 'dimgray')
-        # df.plot(x='DATE',y='0.25in',ax=ax,kind='hist',alpha=0.7,color = 'darkgray')
-            df.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'gray',bins= bins)
-         #   data.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'green',bins= bins)
+        fig.suptitle("%s: %s Distribution"%(station,calc))
+        short_run = df.set_index('DATE')
+        short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()
+        print(short_run)
+        for i in df[depths]:
+         #   bins=np.arange(int(np.nanmin(df[i])), int(np.nanmax(df[i])) + 1, 1)
+            bins = list(range(1,114))
+            axes[cords[count]].set_title(str(i))
+            #   df.plot(x='DATE',y='0.50in',ax=ax,kind='hist',alpha=0.7,color = 'dimgray')
+            #   df.plot(x='DATE',y='0.25in',ax=ax,kind='hist',alpha=0.7,color = 'darkgray')
+            df.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'gray',bins= bins,label="1900-2019")
+            short_run.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'green',bins= bins,label='1980-2019')
+
             count +=1
         for i,ax in enumerate(fig.axes):
-            ylim = ax.get_ylim()
-            ymax = round_up(ylim[1],-2)
-            ax.set_xlim(0,40)
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
-            ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-            ax.yaxis.set_major_locator(ticker.MultipleLocator(ymax/5))
-            ax.yaxis.set_minor_locator(ticker.MultipleLocator(ymax/10))
-            ax.set_ylabel("Number of Occurrences")
-
-            ax.set_ylim(0,ymax)
-
+           ylim = ax.get_ylim()
+           ymax = round_up(ylim[1],-2)
+           ax.set_xlim(0,40)
+           ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
+           ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
+           ax.yaxis.set_major_locator(ticker.MultipleLocator(ymax/5))
+           ax.yaxis.set_minor_locator(ticker.MultipleLocator(ymax/10))
+           ax.set_ylabel("Number of Occurrences")
+   
+           ax.set_ylim(0,ymax)
+   
         savefig(station,calc)
 
 def plot_format(ax,station,calc,year_range):
@@ -466,13 +474,13 @@ def plot_format(ax,station,calc,year_range):
         ax.set_ylabel("Days")
     
     elif calc == 'Days With Precipitation':
-        print(ylim)
+    #    print(ylim)
         ymin = round_up(ylim[0],0)        
         ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))        
         ax.legend().set_visible(False)
         ax.set_ylabel("Days")
-        print(ymin)
+      #  print(ymin)
         if ymin < 0:
             ax.set_ylim([0,ymax])
         else:
@@ -510,8 +518,12 @@ def plot_format(ax,station,calc,year_range):
             ax.set_ylim([0,40])
             ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
             ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
-        
-        ax.set_xticklabels(labels=range(1945,2020,5),rotation=90)
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
+            
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+        ax.xaxis.set_minor_locator(ticker.MultipleLocator(5))
+        ax.tick_params(axis='x', labelrotation= 90)
+#        ax.set_xticklabels(,rotation=90)
         ax.legend().set_visible(False)
         ax.set_title('%s'%calc)
    
@@ -545,6 +557,11 @@ def plot_format(ax,station,calc,year_range):
         plt.setp(ax.get_xticklabels(), rotation=90)
         ax.tick_params(axis='x', which='minor', bottom=False)
         ax.tick_params(axis='both',labelsize = 7 )
+        ax.axvline(x=61) # March 1st
+        ax.axvline(x=152)
+        ax.axvline(x=245)
+        ax.axvline(x=336)
+
         
     ax.xaxis.label.set_visible(False)    
 
@@ -562,7 +579,7 @@ def statistics(df,stat_calc,station,calc,year_range):
         count2=31
         start_year = year_range[0]
         end_year = year_range[1]
-        print(df[stat_calc])
+       # print(df[stat_calc])
         for i in range(1,total_years-29):
             lin_m,lin_b,r_value,p_value,stderr = linregress(x[count:count2],df[stat_calc][count:count2])
             kTau,p_value = stats.kendalltau(x[count:count2],df[stat_calc][count:count2])           # Different way of showing significance.
@@ -689,14 +706,18 @@ def savefig(station,calc):
 def savetable(station,calc,stat_calc):
     print("Saving Table...",calc)
     plt.draw()
-    if calc == "Seasonal Days With Precipitation" or calc == "Seasonal Precipitation Totals":
-        plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s\\Tables\\Seasonal\\%s%s.jpg"%(station,stat_calc,calc),format='jpg',dpi=600,bbox_inches='tight')   
+    if calc == "Seasonal Days With Precipitation":
+        plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s\\Tables\\Seasonal\\DaysWPrecip\\%s%s.jpg"%(station,stat_calc,calc),format='jpg',dpi=600,bbox_inches='tight')   
+    elif calc == "Seasonal Precipitation Totals":
+        plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s\\Tables\\Seasonal\\PrecipTotal\\%s%s.jpg"%(station,stat_calc,calc),format='jpg',dpi=600,bbox_inches='tight')           
     else:
         plt.savefig("E:\\School\\RutgersWork\\DEP_Precip\\Figures\\%s\\Tables\\%s.jpg"%(station,calc),format='jpg',dpi=600,bbox_inches='tight')   
 def main():
 #    station_list = ['New Brunswick']
-#    station_list = ['Coastal South','North West','Central','North East','Coastal North','South West']    
-    station_list = ['South West']
+    station_list = ['Coastal South','Northwest','Central','Northeast','Coastal North','Southwest']    
+   # station_list = ['South West']
+ #   station_list = ['Northwest']
+ #   station_list = ["Central"]
     for station in station_list:
         print(station)
         data = read_file(station)
