@@ -64,9 +64,9 @@ def data_analysis(df,station):
    
     month_to_season_LUT(df,station,calc)    # For seasonal calculations
     
-#    dry_intervals(df,station)
+  #  dry_intervals(df,station)
     
- #   cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
+  #  cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
  
     
     
@@ -211,6 +211,7 @@ def cumulative_precip(df,station):
     calc = "Days to Accumulate x in"
     depth_list = [0.5,1.0,2.0,4.0,10.0,20.0]        # various threshold depths to reach.
     columns = ["0.5in","1.0in","2.0in","4.0in","10.0in","20.0in"]        # various threshold depths to reach.
+    short_columns = ["Short 0.5in","Short 1.0in","Short 2.0in","Short 4.0in","Short 10.0in","Short 20.0in"]     # Columns for shorter time frame
 
     df_j = pd.DataFrame(df['DATE'])         # creating an empty dataframe with DATE as the index
     for d in depth_list:
@@ -231,22 +232,37 @@ def cumulative_precip(df,station):
         
         df_j[d] = pd.DataFrame(j_list)          # Putting list into a dataframe with dates as the index knowing they are the same length
 #    df_j.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")
-    df_join = df_j.set_index('DATE')    
+    df_join = df_j.set_index('DATE') 
+    df_short = df_j.set_index('DATE')
+    df_short = df_short.loc['1980-01-01':'2019-12-31']
+    
+    df_short_daymean = df_short.groupby(df_short.index.dayofyear).mean()
     df_daymean = df_join.groupby(df_join.index.dayofyear).mean()        # Grouping by day of the year and taking the mean.
-    df_upper_dev = df_daymean + df_join.groupby(df_join.index.dayofyear).std()
-    df_lower_dev = df_daymean - df_join.groupby(df_join.index.dayofyear).std()
+    
+    df_short_daymean.columns = short_columns
+    df_daymean.columns = columns    
+    
+    # df_upper_dev = df_daymean + df_join.groupby(df_join.index.dayofyear).std()
+    # df_lower_dev = df_daymean - df_join.groupby(df_join.index.dayofyear).std()
 
-    df_daymean.columns = columns
-    df_upper_dev.columns = ["Up 0.5in","Up 1.0in","Up 2.0in","Up 4.0in","Up 10.0in","Up 20.0in"]
-    df_lower_dev.columns = ["Low 0.5in","Low 1.0in","Low 2.0in","Low 4.0in","Low 10.0in","Low 20.0in"]
+    # df_upper_dev.columns = ["Up 0.5in","Up 1.0in","Up 2.0in","Up 4.0in","Up 10.0in","Up 20.0in"]
+    # df_lower_dev.columns = ["Low 0.5in","Low 1.0in","Low 2.0in","Low 4.0in","Low 10.0in","Low 20.0in"]
     
     
-    df_CumPrecip = pd.DataFrame([df_daymean['0.5in'],df_upper_dev['Up 0.5in'],df_lower_dev['Low 0.5in'],
-                                                    df_daymean['1.0in'],df_upper_dev['Up 1.0in'],df_lower_dev['Low 1.0in'],
-                                                    df_daymean['2.0in'],df_upper_dev['Up 2.0in'],df_lower_dev['Low 2.0in'],
-                                                    df_daymean['4.0in'],df_upper_dev['Up 4.0in'],df_lower_dev['Low 4.0in'],
-                                                    df_daymean['10.0in'],df_upper_dev['Up 10.0in'],df_lower_dev['Low 10.0in'],
-                                                    df_daymean['20.0in'],df_upper_dev['Up 20.0in'],df_lower_dev['Low 20.0in']]).transpose()
+    # df_CumPrecip = pd.DataFrame([df_daymean['0.5in'],df_upper_dev['Up 0.5in'],df_lower_dev['Low 0.5in'],
+    #                                                 df_daymean['1.0in'],df_upper_dev['Up 1.0in'],df_lower_dev['Low 1.0in'],
+    #                                                 df_daymean['2.0in'],df_upper_dev['Up 2.0in'],df_lower_dev['Low 2.0in'],
+    #                                                 df_daymean['4.0in'],df_upper_dev['Up 4.0in'],df_lower_dev['Low 4.0in'],
+    #                                                 df_daymean['10.0in'],df_upper_dev['Up 10.0in'],df_lower_dev['Low 10.0in'],
+    #                                                 df_daymean['20.0in'],df_upper_dev['Up 20.0in'],df_lower_dev['Low 20.0in']]).transpose()
+  #  df_ShortCum
+    df_CumPrecip = pd.DataFrame([df_daymean['0.5in'],df_short_daymean['Short 0.5in'],
+                                 df_daymean['1.0in'],df_short_daymean['Short 1.0in'],
+                                 df_daymean['2.0in'],df_short_daymean['Short 2.0in'],
+                                 df_daymean['4.0in'],df_short_daymean['Short 4.0in'],
+                                 df_daymean['10.0in'],df_short_daymean['Short 10.0in'],
+                                 df_daymean['20.0in'],df_short_daymean['Short 20.0in']
+                                 ]).transpose()
 
     df_CumPrecip.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")    
     
@@ -359,8 +375,15 @@ def plotting(df,calc,station):
         for i,ax in enumerate(fig.axes):
             if calc == 'Seasonal Days With Precipitation':
                 ax.set_ylabel('Days')
+                ax.set_ylim([0,40])
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
+                ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+                ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
             else:
                 ax.set_ylabel('Precipitation (in)')
+                ax.set_ylim([0,30])
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+                ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))    
                 
             subtitle = ['Dec-Jan-Feb','Mar-Apr-May','Jun-Jul-Aug','Sep-Oct-Nov']
             temp_calc = ['DJF','MAM','JJA','SON']
@@ -385,17 +408,28 @@ def plotting(df,calc,station):
         fig,axes = plt.subplots(3, 2,constrained_layout=True,sharex=True)
         fig.suptitle('%s: %s'%(station,calc),fontsize=10)
         
+        short_run = df.set_index('DATE')
+        short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()     
+        
+        
         axes[0,0].plot(df['DATE'],df['0.5in'],color='blue')
+        axes[0,0].plot(df['DATE'],df['Short 0.5in'],color='green')
       #  axes[0,0].fill_between(df['DATE'],df['Up 0.5in'],df['Low 0.5in'],alpha=0.35,color='black')
         axes[0,1].plot(df['DATE'],df['1.0in'],color='blue')
+        axes[0,1].plot(df['DATE'],df['Short 1.0in'],color='green')
       #  axes[0,1].fill_between(df['DATE'],df['Up 1.0in'],df['Low 1.0in'],alpha=0.35,color='black')        
         axes[1,0].plot(df['DATE'],df['2.0in'],color='blue')
+        axes[1,0].plot(df['DATE'],df['Short 2.0in'],color='green')
       #  axes[1,0].fill_between(df['DATE'],df['Up 2.0in'],df['Low 2.0in'],alpha=0.35,color='black')        
         axes[1,1].plot(df['DATE'],df['4.0in'],color='blue')
+        axes[1,1].plot(df['DATE'],df['Short 4.0in'],color='green')
       #  axes[1,1].fill_between(df['DATE'],df['Up 4.0in'],df['Low 4.0in'],alpha=0.35,color='black')        
         axes[2,0].plot(df['DATE'],df['10.0in'],color='blue')
+        axes[2,0].plot(df['DATE'],df['Short 10.0in'],color='green')
+        
       #  axes[2,0].fill_between(df['DATE'],df['Up 10.0in'],df['Low 10.0in'],alpha=0.35,color='black')        
         axes[2,1].plot(df['DATE'],df['20.0in'],color='blue')
+        axes[2,1].plot(df['DATE'],df['Short 20.0in'],color='green')
       #  axes[2,1].fill_between(df['DATE'],df['Up 20.0in'],df['Low 20.0in'],alpha=0.35,color='black')
         # fig,axes = plt.subplots(3, 2,constrained_layout=True)#,sharex=True)
         # fig.suptitle('%s: %s'%(station,calc),fontsize=10)        
@@ -423,7 +457,7 @@ def plotting(df,calc,station):
         fig.suptitle("%s: %s Distribution"%(station,calc))
         short_run = df.set_index('DATE')
         short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()
-        print(short_run)
+  #      print(short_run)
         for i in df[depths]:
          #   bins=np.arange(int(np.nanmin(df[i])), int(np.nanmax(df[i])) + 1, 1)
             bins = list(range(1,114))
@@ -484,7 +518,7 @@ def plot_format(ax,station,calc,year_range):
         if ymin < 0:
             ax.set_ylim([0,ymax])
         else:
-            ax.set_ylim([ymin+10,ymax])
+            ax.set_ylim([40,ymax])
         ax.set_title('%s:%s ≥ 0.1in'%(station,calc))
 
     elif calc == 'Total Precipitation':        
@@ -510,15 +544,15 @@ def plot_format(ax,station,calc,year_range):
         ax.set_ylim([0,15])
         ax.set_title('%s: Maximum Consecutive Days \n with Precipitation'%(station))
     elif (calc == "DJF") or (calc == "MAM") or (calc == "JJA") or (calc == "SON"):
-        if ymax <= 30:            
-            ax.set_ylim([0,30])
-            ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
-            ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
-        else:
-            ax.set_ylim([0,40])
-            ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
-            ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
+        # if ymax <= 30:            
+        #     ax.set_ylim([0,30])
+        #     ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+        #     ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
+        # else:
+        #     ax.set_ylim([0,40])
+        #     ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
+        #     ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+        #     ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
             
         ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
         ax.xaxis.set_minor_locator(ticker.MultipleLocator(5))
@@ -603,8 +637,8 @@ def statistics(df,stat_calc,station,calc,year_range):
             
         stats_df = pd.DataFrame(reg_list, columns = ["Year","Slope","kTau","P-value","Std Error"])
         stats_df.columns = ['Year','Slope',"Kendall's Tau-b",'P-value','Std Error']
-        stats_df = stats_df.sort_values(by="Slope",ascending=False,ignore_index=True)           
-        stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
+        stats_df = stats_df.sort_values(by="Year",ascending=False,ignore_index=True)           
+#        stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
         
 
         stats_save = calc       
@@ -617,23 +651,34 @@ def statistics(df,stat_calc,station,calc,year_range):
         for f in stats_df["Year"]:  
             if int(f[0:4]) >= 1980:     # Highlighting most recent 10 years in yellow.
                 row = stats_df[stats_df['Year']==f].index.item()
-                stat_table[row+1,0].set_facecolor('#FFFF00')
+                stat_table[row+1,0].set_facecolor('#FFFF00')            # Yellow highlight
                 stat_table[row+1,1].set_facecolor('#FFFF00')
                 stat_table[row+1,2].set_facecolor('#FFFF00')
                 stat_table[row+1,3].set_facecolor('#FFFF00')
                 stat_table[row+1,4].set_facecolor('#FFFF00')
 
-
         for g in stats_df['P-value']:                   # Highlighting level of p-value significance in shades of red.
             if g <= 0.01:
                 sig = stats_df[stats_df['P-value'] == g].index.tolist()
                 for r in range(len(sig)):
-                    stat_table[sig[r]+1,3].set_facecolor('#8B0000')     
+                    stat_table[sig[r]+1,3].set_facecolor('#8B0000')     # Dark red
             elif (g <= 0.05) and (g > 0.01):
                 sig = stats_df[stats_df['P-value'] == g].index.tolist()
                 for r in range(len(sig)):
-                    stat_table[sig[r]+1,3].set_facecolor('#FF0000')
+                    stat_table[sig[r]+1,3].set_facecolor('#cc0034')
+        for h in stats_df['Slope']:
+            if h > 0:
+                pos = stats_df[stats_df['Slope'] == h].index.tolist()
+                for r in range(len(pos)):
+                    stat_table[pos[r]+1,1].set_facecolor('#cc0034')         #Red highlight
+            else:
+                pos = stats_df[stats_df['Slope'] == h].index.tolist()
+                for r in range(len(pos)):
+                    stat_table[pos[r]+1,1].set_facecolor('#009acc')         #Blue highlight
                     
+        stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
+
+
         savetable(station,stats_save,stat_calc)
         
         return reg_df
@@ -716,8 +761,8 @@ def main():
 #    station_list = ['New Brunswick']
     station_list = ['Coastal South','Northwest','Central','Northeast','Coastal North','Southwest']    
    # station_list = ['South West']
- #   station_list = ['Northwest']
- #   station_list = ["Central"]
+#    station_list = ['Northwest']
+#    station_list = ["Coastal North"]
     for station in station_list:
         print(station)
         data = read_file(station)
