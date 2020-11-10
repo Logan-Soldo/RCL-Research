@@ -23,7 +23,7 @@ def read_file(station):
     while True:
         try:
             data = pd.read_csv('E:\School\RutgersWork\DEP_Precip\Stations\%s.csv'%(station),parse_dates=['DATE'],infer_datetime_format=True,na_values=[" "," S"," T"," M"]).fillna(0)
-        #    print(data)
+            print(data)
      #       data = data.replace('S',0)
 
         except:
@@ -59,14 +59,14 @@ def data_analysis(df,station):
     plotting(total_precip,calc,station)                 # Plotting Total Precip
     
     df.reset_index(level=0,inplace=True)   
-    
+#    
     bins = binning(df,station)              # Dividing data into bins and then plotting. Calculations are the number of days above x.
    
     month_to_season_LUT(df,station,calc)    # For seasonal calculations
     
   #  dry_intervals(df,station)
     
-  #  cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
+    cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
  
     
     
@@ -112,24 +112,12 @@ def binning(df,station):
     bins = bins.set_index('DATE')     
     group = bins.groupby(bins.index.year).cumsum()  # accumulating days above a base value throughout the year
     calc = 'Bin Progression'
-    plotting(group,calc,station)
+ #   plotting(group,calc,station)
     
     yearly_bin = bins.groupby(bins.index.year).sum() # sum of days above base by year
     calc = 'Days Above Base (in)'
     plotting(yearly_bin,calc,station)
 
-
-
-   #  percent = pd.DataFrame()   # Calculating percentage of precip days above base.
-   #  calc = "Precentage of Precipitation Days At/Above Base (in)"
-   #  yearly_bin = bins.groupby(bins.index.year).sum()
-   #  percent['≥ 0.10'] = (yearly_bin['≥ 0.10']/yearly_bin['>0.0'])*100
-   #  percent['≥ 0.25'] = (yearly_bin['≥ 0.25']/yearly_bin['>0.0'])*100
-   #  percent['≥ 0.50'] = (yearly_bin['≥ 0.50']/yearly_bin['>0.0'])*100
-   #  percent['≥ 1.00'] = (yearly_bin['≥ 1.00']/yearly_bin['>0.0'])*100
-   #  percent['≥ 2.00'] = (yearly_bin['≥ 2.00']/yearly_bin['>0.0'])*100
-   # # print(percent)
-   #  plotting(percent,calc,station)
 
 def Precip_events(df,station):
     '''
@@ -161,15 +149,13 @@ def dry_intervals(df,station):
     dry_intervals = pd.DataFrame(df[['DATE','PRCP']])
     dry_df = pd.DataFrame(df['DATE'])
     dry_df = dry_df.set_index('DATE')
-    #print(dry_df)
     dry_list = []
     calc = "Dry Intervals"
  #   _,ax = plt.subplots()
     base_list = [1.0,0.5,0.25,0.1]
     base_string =['1.0in','0.50in','0.25in','0.10in']
- #   print(df)
+
     for base in base_list:
-   #     print(base)
         dry_intervals['Precip Days'] = np.where((dry_intervals['PRCP'] > base),1,0)     # Changing minimum depth to end "dry spell"
         dry_intervals['Count'] = np.where(dry_intervals['Precip Days'].eq(0),
                                           dry_intervals.groupby(dry_intervals['Precip Days'].ne(dry_intervals['Precip Days'].
@@ -178,18 +164,13 @@ def dry_intervals(df,station):
         dry_intervals['dry_count'] = np.where(dry_intervals['dry_spells'].eq(0),
                                           dry_intervals.groupby(dry_intervals['dry_spells'].ne(dry_intervals['dry_spells'].
                                                                                                 shift()).cumsum()).cumcount() +1,np.nan)
-     #   print(dry_intervals)
-          
-        
 
         key1 = dry_intervals.assign(
             key1=dry_intervals.groupby(dry_intervals["dry_count"].isnull())["dry_count"].transform("cumcount").cumsum()
         ).groupby("key1")["dry_count"].max()                #Issues here with the 1900 runs for 0.0in
-     #   print(key1)
         key2 = dry_intervals.assign(
             key1=dry_intervals.groupby(dry_intervals["dry_count"].isnull())["dry_count"].transform("cumcount").cumsum()
         ).groupby("key1")["DATE"].max().dropna()
-    #    print(key2)            
             
         dry_spell = pd.concat([key2,key1],axis=1).reset_index()
         dry_spell = dry_spell.drop(columns='key1')
@@ -197,10 +178,9 @@ def dry_intervals(df,station):
         dry_list.append(dry_spell)
     dry_df = pd.concat(dry_list,axis=1)
     dry_df.columns = base_string
-    dry_df.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")          
-    print(dry_df)
+    dry_df.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")   
+
     plotting(dry_df,calc,station)
-    #dry_spell.plot(x='DATE',y='dry_count',ax=ax,kind='hist',alpha=0.7)
 
 
 def cumulative_precip(df,station):
@@ -208,11 +188,18 @@ def cumulative_precip(df,station):
     This function counts how many days it takes to get to precip of x magnitude.
 
     '''
-    calc = "Days to Accumulate x in"
+    calc = "Days to Accumulate X Inches of Precipitation"
     depth_list = [0.5,1.0,2.0,4.0,10.0,20.0]        # various threshold depths to reach.
     columns = ["0.5in","1.0in","2.0in","4.0in","10.0in","20.0in"]        # various threshold depths to reach.
     short_columns = ["Short 0.5in","Short 1.0in","Short 2.0in","Short 4.0in","Short 10.0in","Short 20.0in"]     # Columns for shorter time frame
-
+    periods = [['1900-01-01','1930-01-01','1960-01-01','1990-01-01'],
+              ['1929-12-31','1959-12-31','1989-12-31','2019-12-31']]
+    date_cols = [["1900 0.5in","1900 1.0in","1900 2.0in","1900 4.0in","1900 10.0in","1900 20.0in"],                 # Hardcoding in periods for possible differencing.
+                 ["1930 0.5in","1930 1.0in","1930 2.0in","1930 4.0in","1930 10.0in","1930 20.0in"],
+                 ["1960 0.5in","1960 1.0in","1960 2.0in","1960 4.0in","1960 10.0in","1960 20.0in"],
+                 ["1990 0.5in","1990 1.0in","1990 2.0in","1990 4.0in","1990 10.0in","1990 20.0in"]]
+    period_df = pd.DataFrame()
+    max_df = pd.DataFrame()
     df_j = pd.DataFrame(df['DATE'])         # creating an empty dataframe with DATE as the index
     for d in depth_list:
         j_list = []                         # starting an empty list for each threshold depth
@@ -234,39 +221,34 @@ def cumulative_precip(df,station):
 #    df_j.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")
     df_join = df_j.set_index('DATE') 
     df_short = df_j.set_index('DATE')
-    df_short = df_short.loc['1980-01-01':'2019-12-31']
+    period_list = []
+    period_max = []
+    for p in range(len(periods[0])):                        # Looping through each year.
+        temp_df = df_short.loc[periods[0][p]:periods[1][p]]     # Locating each year. need a "dummy df" to do .loc calculation. Indexing list of list.
+        df_short_daymean = temp_df.groupby(temp_df.index.dayofyear).mean()      # Taking mean.
+        df_short_daymean.columns = date_cols[p]                     # Assigning column names.
+        period_list.append(df_short_daymean)                    # appending to a list of dataframes.
+        
+        df_short_daymax = temp_df.groupby(temp_df.index.dayofyear).max()
+        df_short_daymax.columns = date_cols[p]
+        period_max.append(df_short_daymax)
+    period_df = pd.concat(period_list,axis=1)           # combining the columns of all years
+    max_df = pd.concat(period_max,axis=1)
     
-    df_short_daymean = df_short.groupby(df_short.index.dayofyear).mean()
     df_daymean = df_join.groupby(df_join.index.dayofyear).mean()        # Grouping by day of the year and taking the mean.
-    
-    df_short_daymean.columns = short_columns
-    df_daymean.columns = columns    
-    
-    # df_upper_dev = df_daymean + df_join.groupby(df_join.index.dayofyear).std()
-    # df_lower_dev = df_daymean - df_join.groupby(df_join.index.dayofyear).std()
+    df_daymax = df_join.groupby(df_join.index.dayofyear).max()
 
-    # df_upper_dev.columns = ["Up 0.5in","Up 1.0in","Up 2.0in","Up 4.0in","Up 10.0in","Up 20.0in"]
-    # df_lower_dev.columns = ["Low 0.5in","Low 1.0in","Low 2.0in","Low 4.0in","Low 10.0in","Low 20.0in"]
-    
-    
-    # df_CumPrecip = pd.DataFrame([df_daymean['0.5in'],df_upper_dev['Up 0.5in'],df_lower_dev['Low 0.5in'],
-    #                                                 df_daymean['1.0in'],df_upper_dev['Up 1.0in'],df_lower_dev['Low 1.0in'],
-    #                                                 df_daymean['2.0in'],df_upper_dev['Up 2.0in'],df_lower_dev['Low 2.0in'],
-    #                                                 df_daymean['4.0in'],df_upper_dev['Up 4.0in'],df_lower_dev['Low 4.0in'],
-    #                                                 df_daymean['10.0in'],df_upper_dev['Up 10.0in'],df_lower_dev['Low 10.0in'],
-    #                                                 df_daymean['20.0in'],df_upper_dev['Up 20.0in'],df_lower_dev['Low 20.0in']]).transpose()
-  #  df_ShortCum
-    df_CumPrecip = pd.DataFrame([df_daymean['0.5in'],df_short_daymean['Short 0.5in'],
-                                 df_daymean['1.0in'],df_short_daymean['Short 1.0in'],
-                                 df_daymean['2.0in'],df_short_daymean['Short 2.0in'],
-                                 df_daymean['4.0in'],df_short_daymean['Short 4.0in'],
-                                 df_daymean['10.0in'],df_short_daymean['Short 10.0in'],
-                                 df_daymean['20.0in'],df_short_daymean['Short 20.0in']
-                                 ]).transpose()
+    df_daymean.columns = columns    
+    df_daymax.columns = columns
+        
+    df_CumPrecip = df_daymean.join(period_df)
+    df_CumMax = df_daymax.join(max_df)
+    print(df_CumMax)
 
     df_CumPrecip.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")    
     
-    plotting(df_CumPrecip,calc,station)
+   # plotting(df_CumPrecip,calc,station)
+    plotting(df_CumMax,calc,station)
     
 def plotting(df,calc,station):
     '''
@@ -290,13 +272,16 @@ def plotting(df,calc,station):
         width = 0.70
         stat_calc = 'PRCP'
 #        lin_r = stats.pearsonr(x,df['PRCP'])
-        reg = statistics(df,stat_calc,station,calc,year_range)
+        reg,period = statistics(df,stat_calc,station,calc,year_range)
         _,ax = plt.subplots()
-        df['PRCP'].plot(ax=ax,width=width,kind='bar',color=c[4])
+        df['PRCP'].plot(ax=ax,width=width,kind='bar',color="gray")#color=c[4])
         print(df)
+        print(period)
          #   print(slope_df)
         reg = reg.reset_index(drop=True)
+        period = period.reset_index(drop=True)
         reg.plot(ax=ax,color="black",linewidth="0.40",linestyle="dashed")
+        period.plot(ax=ax,color="blue",linewidth="1.0")
 
         plot_format(ax,station,calc,year_range)
         
@@ -318,15 +303,18 @@ def plotting(df,calc,station):
         savefig(station, calc)
 
         stat_calc = "≥ 0.10"
-        reg = statistics(df,stat_calc,station,calc,year_range)
+        reg,period = statistics(df,stat_calc,station,calc,year_range)
 
         fig,ax2 = plt.subplots()                          # Plotting only the number of days with precip above 0.0.
         calc = 'Days With Precipitation'
         
         reg = reg.reset_index(drop=True)
-        reg.plot(ax=ax2,color="black",linewidth="0.40",linestyle="dashed")
+        period = period.reset_index(drop=True)
 
-        df['≥ 0.10'].plot(ax=ax2,kind='bar',width=width,color='blue')
+        reg.plot(ax=ax2,color="black",linewidth="0.40",linestyle="dashed")
+        period.plot(ax=ax2,color="blue",linewidth="1.0")
+
+        df['≥ 0.10'].plot(ax=ax2,kind='bar',width=width,color="gray")#color='blue')
         
         plot_format(ax2,station,calc,year_range)
         savefig(station, calc)    
@@ -356,7 +344,7 @@ def plotting(df,calc,station):
         temp_calc = ['DJF','MAM','JJA','SON']
         reg_list = []
         for i in temp_calc:
-            reg = statistics(df,i,station,calc,year_range)
+            reg,period = statistics(df,i,station,calc,year_range)
             reg = reg.reset_index(drop=True)
             reg_list.append(reg)
 
@@ -400,9 +388,7 @@ def plotting(df,calc,station):
         
         
 
-    if calc == 'Days to Accumulate x in':
-        ### TODO 
-        ####### plot one standard deviation above and below each.
+    if calc == 'Days to Accumulate X Inches of Precipitation':
         
         print(df)
         fig,axes = plt.subplots(3, 2,constrained_layout=True,sharex=True)
@@ -411,86 +397,125 @@ def plotting(df,calc,station):
         short_run = df.set_index('DATE')
         short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()     
         
+        colors = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']
+        labels = ['1900-1929','1930-1959','1960-1989','1990-2019','1900-2019']
+        width = 0.75
         
-        axes[0,0].plot(df['DATE'],df['0.5in'],color='blue')
-        axes[0,0].plot(df['DATE'],df['Short 0.5in'],color='green')
-      #  axes[0,0].fill_between(df['DATE'],df['Up 0.5in'],df['Low 0.5in'],alpha=0.35,color='black')
-        axes[0,1].plot(df['DATE'],df['1.0in'],color='blue')
-        axes[0,1].plot(df['DATE'],df['Short 1.0in'],color='green')
-      #  axes[0,1].fill_between(df['DATE'],df['Up 1.0in'],df['Low 1.0in'],alpha=0.35,color='black')        
-        axes[1,0].plot(df['DATE'],df['2.0in'],color='blue')
-        axes[1,0].plot(df['DATE'],df['Short 2.0in'],color='green')
-      #  axes[1,0].fill_between(df['DATE'],df['Up 2.0in'],df['Low 2.0in'],alpha=0.35,color='black')        
-        axes[1,1].plot(df['DATE'],df['4.0in'],color='blue')
-        axes[1,1].plot(df['DATE'],df['Short 4.0in'],color='green')
-      #  axes[1,1].fill_between(df['DATE'],df['Up 4.0in'],df['Low 4.0in'],alpha=0.35,color='black')        
-        axes[2,0].plot(df['DATE'],df['10.0in'],color='blue')
-        axes[2,0].plot(df['DATE'],df['Short 10.0in'],color='green')
+        axes[0,0].plot(df['DATE'],df['1900 0.5in'],linewidth=width,color=colors[0])
+        axes[0,0].plot(df['DATE'],df['1930 0.5in'],linewidth=width,color=colors[1])
+        axes[0,0].plot(df['DATE'],df['1960 0.5in'],linewidth=width,color=colors[2])
+        axes[0,0].plot(df['DATE'],df['1990 0.5in'],linewidth=width,color=colors[3])
+        axes[0,0].plot(df['DATE'],df['0.5in'],linewidth=1.0,color='black')
         
-      #  axes[2,0].fill_between(df['DATE'],df['Up 10.0in'],df['Low 10.0in'],alpha=0.35,color='black')        
-        axes[2,1].plot(df['DATE'],df['20.0in'],color='blue')
-        axes[2,1].plot(df['DATE'],df['Short 20.0in'],color='green')
-      #  axes[2,1].fill_between(df['DATE'],df['Up 20.0in'],df['Low 20.0in'],alpha=0.35,color='black')
-        # fig,axes = plt.subplots(3, 2,constrained_layout=True)#,sharex=True)
-        # fig.suptitle('%s: %s'%(station,calc),fontsize=10)        
-        # df.plot(x='DATE',y='0.5in',kind= 'line',ax=axes[0,0],color='blue')
-        # df.fill_between('DATE','Up 0.5in','low 0.5in',ax=axes[0,0],alpha=0.35,linewidth=0,color='black')
-        # df.plot(x='DATE',y='1.0in',kind= 'line',ax=axes[0,1],color='blue')                
-        # df.plot(x='DATE',y='2.0in',kind= 'line',ax=axes[1,0],color='blue')        
-        # df.plot(x='DATE',y='4.0in',kind= 'line',ax=axes[1,1],color='blue')        
-        # df.plot(x='DATE',y='10.0in',kind= 'line',ax=axes[2,0],color='blue')        
-        # df.plot(x='DATE',y='20.0in',kind= 'line',ax=axes[2,1],color='blue')
+        axes[0,1].plot(df['DATE'],df['1900 1.0in'],linewidth=width,color=colors[0])
+        axes[0,1].plot(df['DATE'],df['1930 1.0in'],linewidth=width,color=colors[1])
+        axes[0,1].plot(df['DATE'],df['1960 1.0in'],linewidth=width,color=colors[2])
+        axes[0,1].plot(df['DATE'],df['1990 1.0in'],linewidth=width,color=colors[3])
+        axes[0,1].plot(df['DATE'],df['1.0in'],linewidth=1.0,color='black')
+
+        axes[1,0].plot(df['DATE'],df['1900 2.0in'],linewidth=width,color=colors[0])
+        axes[1,0].plot(df['DATE'],df['1930 2.0in'],linewidth=width,color=colors[1])
+        axes[1,0].plot(df['DATE'],df['1960 2.0in'],linewidth=width,color=colors[2])
+        axes[1,0].plot(df['DATE'],df['1990 2.0in'],linewidth=width,color=colors[3])
+        axes[1,0].plot(df['DATE'],df['2.0in'],linewidth=1.0,color='black')
+
+        axes[1,1].plot(df['DATE'],df['1900 4.0in'],linewidth=width,color=colors[0])
+        axes[1,1].plot(df['DATE'],df['1930 4.0in'],linewidth=width,color=colors[1])
+        axes[1,1].plot(df['DATE'],df['1960 4.0in'],linewidth=width,color=colors[2])
+        axes[1,1].plot(df['DATE'],df['1990 4.0in'],linewidth=width,color=colors[3])
+        axes[1,1].plot(df['DATE'],df['4.0in'],linewidth=1.0,color='black')
+
+        axes[2,0].plot(df['DATE'],df['1900 10.0in'],linewidth=width,color=colors[0])
+        axes[2,0].plot(df['DATE'],df['1930 10.0in'],linewidth=width,color=colors[1])
+        axes[2,0].plot(df['DATE'],df['1960 10.0in'],linewidth=width,color=colors[2])
+        axes[2,0].plot(df['DATE'],df['1990 10.0in'],linewidth=width,color=colors[3])
+        axes[2,0].plot(df['DATE'],df['10.0in'],linewidth=1.0,color='black')
+        
+        axes[2,1].plot(df['DATE'],df['1900 20.0in'],linewidth=width,color=colors[0])
+        axes[2,1].plot(df['DATE'],df['1930 20.0in'],linewidth=width,color=colors[1])
+        axes[2,1].plot(df['DATE'],df['1960 20.0in'],linewidth=width,color=colors[2])
+        axes[2,1].plot(df['DATE'],df['1990 20.0in'],linewidth=width,color=colors[3])
+        axes[2,1].plot(df['DATE'],df['20.0in'],linewidth=1.0,color='black')
+
 
         for i,ax in enumerate(fig.axes):
             calc = ['0.5in','1in','2in','4in','10in','20in']
             plot_format(ax,station,calc[i],year_range)
+            
+            
+        fig = fig.legend(labels,loc='lower center',fontsize=8, ncol=5,bbox_to_anchor=[0, -0.08,1,1], bbox_transform=fig.transFigure )
+     #   fig.subplots_adjust(bottom=0.25)
         savefig(station,calc)
 
     
     if calc == "Dry Intervals":             # Three separate plots
+        start_year = 1900
+        end_year = 2019
+        year_range = (start_year,end_year)
+        #idx = pd.date_range(start_year, end_year)
+        # df = df.reindex(idx, fill_value=np.nan)
+        # df = df.rename(columns={'index':'DATE'})        
+        df = df.set_index('DATE')
+        year_events = df.groupby(df.index.year).mean().reset_index()     # Average length of dry events 
+        count_events = df.groupby(df.index.year).count().reset_index()     # Counting the number of dry events per year.
+        print(count_events)
         fig,axes = plt.subplots(2,2,constrained_layout=True)
-#        depths =['0.50in','0.25in','0.00in']
         depths = ['0.10in','0.25in','0.50in','1.0in']
         cords = [(0,0),(0,1),(1,0),(1,1)]
-        count =0
 
-        fig.suptitle("%s: %s Distribution"%(station,calc))
-        short_run = df.set_index('DATE')
-        short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()
-  #      print(short_run)
+        fig.suptitle("%s: Average Length of \n Dry Intervals and Number of Occurrences"%(station))
+        count = 0
+
         for i in df[depths]:
-         #   bins=np.arange(int(np.nanmin(df[i])), int(np.nanmax(df[i])) + 1, 1)
-            bins = list(range(1,114))
+            reg,period = statistics(year_events,i,station,calc,year_range)
+          #  ax2 = axes[cords[count]].twinx()
             axes[cords[count]].set_title(str(i))
-            #   df.plot(x='DATE',y='0.50in',ax=ax,kind='hist',alpha=0.7,color = 'dimgray')
-            #   df.plot(x='DATE',y='0.25in',ax=ax,kind='hist',alpha=0.7,color = 'darkgray')
-            df.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'gray',bins= bins,label="1900-2019")
-            short_run.plot(x='DATE',y=i,ax=axes[cords[count]],kind='hist',alpha=0.7,color = 'green',bins= bins,label='1980-2019')
+            
+            axes[cords[count]].bar(year_events['DATE'],year_events[i],color='blue',alpha=0.50,label='Mean')
+       #     ax2.scatter(count_events['DATE'],count_events[i],color='black',label='Count',s=0.40)
+            reg.plot(ax=axes[cords[count]],color="black",linewidth="0.40",linestyle="dashed",legend=False)
+            
+            ymax =  round_up(max(count_events[i]),-2)
+            print(ymax)
 
-            count +=1
-        for i,ax in enumerate(fig.axes):
-           ylim = ax.get_ylim()
-           ymax = round_up(ylim[1],-2)
-           ax.set_xlim(0,40)
-           ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
-           ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-           ax.yaxis.set_major_locator(ticker.MultipleLocator(ymax/5))
-           ax.yaxis.set_minor_locator(ticker.MultipleLocator(ymax/10))
-           ax.set_ylabel("Number of Occurrences")
-   
-           ax.set_ylim(0,ymax)
-   
+            # ax2.set_ylim(0,ymax)
+            # ax2.yaxis.set_major_locator(ticker.MultipleLocator(20))
+            # ax2.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+            
+            
+            ymax = round_up(max(year_events[i]),-1)
+            print(ymax)            
+            axes[cords[count]].set_xlim(1900,2020)
+            axes[cords[count]].xaxis.set_major_locator(ticker.MultipleLocator(10))
+            axes[cords[count]].xaxis.set_minor_locator(ticker.MultipleLocator(2))
+            axes[cords[count]].set_ylim = [0,ymax]
+            if ymax <= 10.0:                
+                axes[cords[count]].yaxis.set_major_locator(ticker.MultipleLocator(2))
+                axes[cords[count]].yaxis.set_minor_locator(ticker.MultipleLocator(1))
+            elif ymax >= 80.0:
+                axes[cords[count]].yaxis.set_major_locator(ticker.MultipleLocator(ymax/5))
+                axes[cords[count]].yaxis.set_minor_locator(ticker.MultipleLocator(ymax/10))                
+            else:
+                axes[cords[count]].yaxis.set_major_locator(ticker.MultipleLocator(ymax/5))
+                axes[cords[count]].yaxis.set_minor_locator(ticker.MultipleLocator(2))
+                
+            axes[cords[count]].tick_params(axis='x', labelrotation= 90)
+            axes[cords[count]].tick_params(axis='y', which='major', labelsize=8)
+            # ax2.tick_params(axis='y', which='major', labelsize=8)
+            
+            if count == 0 or count == 2:
+                axes[cords[count]].set_ylabel('Average # of Days',fontsize=8)
+            # if count == 1 or count == 3:
+            #     ax2.set_ylabel('Number of Occurences',fontsize=8)
+            count+=1
         savefig(station,calc)
+            
+   
 
 def plot_format(ax,station,calc,year_range):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-    print(year_range)
-    # year_range = (1900,2020)
-    # xlim = ax.get_xlim()
-    # xmin = round_up(xlim[0],0)
-    # xmax = round_up(xlim[1],0)
-    # print(xmin,xmax)
+
     fmtr = ticker.IndexFormatter(range(year_range[0],year_range[1]))
     ax.xaxis.set_major_formatter(fmtr)   
     ylim = ax.get_ylim()
@@ -600,7 +625,8 @@ def plot_format(ax,station,calc,year_range):
     ax.xaxis.label.set_visible(False)    
 
 def statistics(df,stat_calc,station,calc,year_range):
-
+       # df = df.reset_index()
+        print(df)
         x=df['DATE'].values
 
         reg_list = []
@@ -614,6 +640,11 @@ def statistics(df,stat_calc,station,calc,year_range):
         start_year = year_range[0]
         end_year = year_range[1]
        # print(df[stat_calc])
+        lin_m,lin_b,r_value,p_value,stderr = linregress(x,df[stat_calc])            # Whole period regression.
+        kTau,p_value = stats.kendalltau(x,df[stat_calc])           # Different way of showing significance.
+        regress = lin_m*x + lin_b
+        period_slope_df = pd.DataFrame(regress,x)            
+        
         for i in range(1,total_years-29):
             lin_m,lin_b,r_value,p_value,stderr = linregress(x[count:count2],df[stat_calc][count:count2])
             kTau,p_value = stats.kendalltau(x[count:count2],df[stat_calc][count:count2])           # Different way of showing significance.
@@ -644,44 +675,44 @@ def statistics(df,stat_calc,station,calc,year_range):
         stats_save = calc       
         reg_df = pd.concat(stat_list,axis=1)
         reg_df.columns = range(reg_df.shape[1])
-        fig2, ax3 =plt.subplots(1)
-        ax3.axis('tight')
-        ax3.axis('off')        
-        stat_table = ax3.table(cellText=stats_df.values,colLabels=stats_df.columns,loc='center')
-        for f in stats_df["Year"]:  
-            if int(f[0:4]) >= 1980:     # Highlighting most recent 10 years in yellow.
-                row = stats_df[stats_df['Year']==f].index.item()
-                stat_table[row+1,0].set_facecolor('#FFFF00')            # Yellow highlight
-                stat_table[row+1,1].set_facecolor('#FFFF00')
-                stat_table[row+1,2].set_facecolor('#FFFF00')
-                stat_table[row+1,3].set_facecolor('#FFFF00')
-                stat_table[row+1,4].set_facecolor('#FFFF00')
+        # fig2, ax3 =plt.subplots(1)
+        # ax3.axis('tight')
+        # ax3.axis('off')        
+        # stat_table = ax3.table(cellText=stats_df.values,colLabels=stats_df.columns,loc='center')
+        # for f in stats_df["Year"]:  
+        #     if int(f[0:4]) >= 1980:     # Highlighting most recent 10 years in yellow.
+        #         row = stats_df[stats_df['Year']==f].index.item()
+        #         stat_table[row+1,0].set_facecolor('#FFFF00')            # Yellow highlight
+        #         stat_table[row+1,1].set_facecolor('#FFFF00')
+        #         stat_table[row+1,2].set_facecolor('#FFFF00')
+        #         stat_table[row+1,3].set_facecolor('#FFFF00')
+        #         stat_table[row+1,4].set_facecolor('#FFFF00')
 
-        for g in stats_df['P-value']:                   # Highlighting level of p-value significance in shades of red.
-            if g <= 0.01:
-                sig = stats_df[stats_df['P-value'] == g].index.tolist()
-                for r in range(len(sig)):
-                    stat_table[sig[r]+1,3].set_facecolor('#8B0000')     # Dark red
-            elif (g <= 0.05) and (g > 0.01):
-                sig = stats_df[stats_df['P-value'] == g].index.tolist()
-                for r in range(len(sig)):
-                    stat_table[sig[r]+1,3].set_facecolor('#cc0034')
-        for h in stats_df['Slope']:
-            if h > 0:
-                pos = stats_df[stats_df['Slope'] == h].index.tolist()
-                for r in range(len(pos)):
-                    stat_table[pos[r]+1,1].set_facecolor('#cc0034')         #Red highlight
-            else:
-                pos = stats_df[stats_df['Slope'] == h].index.tolist()
-                for r in range(len(pos)):
-                    stat_table[pos[r]+1,1].set_facecolor('#009acc')         #Blue highlight
+        # for g in stats_df['P-value']:                   # Highlighting level of p-value significance in shades of red.
+        #     if g <= 0.01:
+        #         sig = stats_df[stats_df['P-value'] == g].index.tolist()
+        #         for r in range(len(sig)):
+        #             stat_table[sig[r]+1,3].set_facecolor('#8B0000')     # Dark red
+        #     elif (g <= 0.05) and (g > 0.01):
+        #         sig = stats_df[stats_df['P-value'] == g].index.tolist()
+        #         for r in range(len(sig)):
+        #             stat_table[sig[r]+1,3].set_facecolor('#cc0034')
+        # for h in stats_df['Slope']:
+        #     if h > 0:
+        #         pos = stats_df[stats_df['Slope'] == h].index.tolist()
+        #         for r in range(len(pos)):
+        #             stat_table[pos[r]+1,1].set_facecolor('#cc0034')         #Red highlight
+        #     else:
+        #         pos = stats_df[stats_df['Slope'] == h].index.tolist()
+        #         for r in range(len(pos)):
+        #             stat_table[pos[r]+1,1].set_facecolor('#009acc')         #Blue highlight
                     
         stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
 
 
-        savetable(station,stats_save,stat_calc)
+  #      savetable(station,stats_save,stat_calc)
         
-        return reg_df
+        return reg_df,period_slope_df     # Returning the 30 year regressions in "reg_df" and full year period in "period_slope_df"
             
 
 
@@ -760,11 +791,9 @@ def savetable(station,calc,stat_calc):
 def main():
 #    station_list = ['New Brunswick']
     station_list = ['Coastal South','Northwest','Central','Northeast','Coastal North','Southwest']    
-   # station_list = ['South West']
-#    station_list = ['Northwest']
-#    station_list = ["Coastal North"]
+#    station_list = ['Northeast']
+    
     for station in station_list:
-        print(station)
         data = read_file(station)
         data_analysis(data,station)
 
