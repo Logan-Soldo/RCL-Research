@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.patches as mpatches
 from datetime import datetime
 import math
 from scipy.stats import linregress
@@ -33,7 +34,6 @@ def read_file(station):
         data['PRCP'] = data['PRCP'].astype(str)
    #     data = data.PRCP.str.extract(r'(?P<PRCP>[0-9.0-9]*)(?P<STR>[A]{0,1})',expand=True)
         data['PRCP'] =  data['PRCP'].str.extract('([+-.0-9]+)(.*)').rename(columns={0:'PRCP', 1:'UNIT'})
-        data.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")          
 
         data['PRCP'] = pd.to_numeric(data.PRCP,errors='coerce')
         data = data.set_index(['DATE'])
@@ -59,7 +59,7 @@ def data_analysis(df,station):
     plotting(total_precip,calc,station)                 # Plotting Total Precip
     
     df.reset_index(level=0,inplace=True)   
-#    
+# #    
     bins = binning(df,station)              # Dividing data into bins and then plotting. Calculations are the number of days above x.
    
     month_to_season_LUT(df,station,calc)    # For seasonal calculations
@@ -192,12 +192,24 @@ def cumulative_precip(df,station):
     depth_list = [0.5,1.0,2.0,4.0,10.0,20.0]        # various threshold depths to reach.
     columns = ["0.5in","1.0in","2.0in","4.0in","10.0in","20.0in"]        # various threshold depths to reach.
     short_columns = ["Short 0.5in","Short 1.0in","Short 2.0in","Short 4.0in","Short 10.0in","Short 20.0in"]     # Columns for shorter time frame
-    periods = [['1900-01-01','1930-01-01','1960-01-01','1990-01-01'],
-              ['1929-12-31','1959-12-31','1989-12-31','2019-12-31']]
+    calculation = [' median',' mean',' max',' min',' per high',' per low']
+    # periods = [['1900-01-01','1930-01-01','1960-01-01','1990-01-01'],
+    #           ['1929-12-31','1959-12-31','1989-12-31','2019-12-31']]
+    # date_cols = [["1900 0.5in","1900 1.0in","1900 2.0in","1900 4.0in","1900 10.0in","1900 20.0in"],                 # Hardcoding in periods for possible differencing.
+    #              ["1930 0.5in","1930 1.0in","1930 2.0in","1930 4.0in","1930 10.0in","1930 20.0in"],
+    #              ["1960 0.5in","1960 1.0in","1960 2.0in","1960 4.0in","1960 10.0in","1960 20.0in"],
+    #              ["1990 0.5in","1990 1.0in","1990 2.0in","1990 4.0in","1990 10.0in","1990 20.0in"]]    
+    periods = [['1900-01-01','1920-01-01','1940-01-01','1960-01-01','1980-01-01','2000-01-01'],         # 20-year increments
+              ['1919-12-31','1939-12-31','1959-12-31','1979-12-31','1999-01-01','2019-01-01']]
+    
     date_cols = [["1900 0.5in","1900 1.0in","1900 2.0in","1900 4.0in","1900 10.0in","1900 20.0in"],                 # Hardcoding in periods for possible differencing.
-                 ["1930 0.5in","1930 1.0in","1930 2.0in","1930 4.0in","1930 10.0in","1930 20.0in"],
-                 ["1960 0.5in","1960 1.0in","1960 2.0in","1960 4.0in","1960 10.0in","1960 20.0in"],
-                 ["1990 0.5in","1990 1.0in","1990 2.0in","1990 4.0in","1990 10.0in","1990 20.0in"]]
+                  ["1920 0.5in","1920 1.0in","1920 2.0in","1920 4.0in","1920 10.0in","1920 20.0in"],
+                  ["1940 0.5in","1940 1.0in","1940 2.0in","1940 4.0in","1940 10.0in","1940 20.0in"],
+                  ["1960 0.5in","1960 1.0in","1960 2.0in","1960 4.0in","1960 10.0in","1960 20.0in"],
+                  ["1980 0.5in","1980 1.0in","1980 2.0in","1980 4.0in","1980 10.0in","1980 20.0in"],
+                  ["2000 0.5in","2000 1.0in","2000 2.0in","2000 4.0in","2000 10.0in","2000 20.0in"]]       
+    
+
     period_df = pd.DataFrame()
     max_df = pd.DataFrame()
     df_j = pd.DataFrame(df['DATE'])         # creating an empty dataframe with DATE as the index
@@ -219,35 +231,106 @@ def cumulative_precip(df,station):
         
         df_j[d] = pd.DataFrame(j_list)          # Putting list into a dataframe with dates as the index knowing they are the same length
 #    df_j.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")
+
     df_join = df_j.set_index('DATE') 
     df_short = df_j.set_index('DATE')
+
+    df_median = pd.DataFrame()
+    df_mean = pd.DataFrame()          
+    df_max = pd.DataFrame()
+    df_min = pd.DataFrame()
+    df_perhigh = pd.DataFrame()
+    df_perlow = pd.DataFrame()
+    
+    period_df = pd.DataFrame()
+    max_df = pd.DataFrame()
+    
     period_list = []
     period_max = []
+    if station == 'Northwest':
+        df_j.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")     
+        
     for p in range(len(periods[0])):                        # Looping through each year.
         temp_df = df_short.loc[periods[0][p]:periods[1][p]]     # Locating each year. need a "dummy df" to do .loc calculation. Indexing list of list.
-        df_short_daymean = temp_df.groupby(temp_df.index.dayofyear).mean()      # Taking mean.
-        df_short_daymean.columns = date_cols[p]                     # Assigning column names.
-        period_list.append(df_short_daymean)                    # appending to a list of dataframes.
+                
+        df_short_median = temp_df.groupby(temp_df.index.dayofyear).median()      # Taking mean.
+        df_short_median.columns = date_cols[p]                  # Assigning column names.
+        df_short_median.columns += calculation[0]
+        df_median = df_median.join(df_short_median,how="outer")               # appending to a list of dataframes.
+      #  period_list.append(df_short_daymean)
+        df_short_mean = temp_df.groupby(temp_df.index.dayofyear).mean()      # Taking mean.
+        df_short_mean.columns = date_cols[p]                  # Assigning column names.
+        df_short_mean.columns += calculation[1]
+        df_mean = df_mean.join(df_short_mean,how="outer")               # appending to a list of dataframes.
         
-        df_short_daymax = temp_df.groupby(temp_df.index.dayofyear).max()
-        df_short_daymax.columns = date_cols[p]
-        period_max.append(df_short_daymax)
+        df_short_max = temp_df.groupby(temp_df.index.dayofyear).max()
+        df_short_max.columns = date_cols[p]
+        df_short_max.columns += calculation[2]
+        df_max = df_max.join(df_short_max,how="outer")               # appending to a list of dataframes.
+        
+        df_short_min =  temp_df.groupby(temp_df.index.dayofyear).min()
+        df_short_min.columns = date_cols[p]
+        df_short_min.columns += calculation[3]
+        df_min = df_min.join(df_short_min,how="outer")               # appending to a list of dataframes.
+        
+        per_high = temp_df.groupby(temp_df.index.dayofyear).quantile(0.75)
+        per_high.columns = date_cols[p]
+        per_high.columns += calculation[4]
+        df_perhigh = df_perhigh.join(per_high,how="outer")               # appending to a list of dataframes.
+        
+        per_low = temp_df.groupby(temp_df.index.dayofyear).quantile(0.25)
+        per_low.columns = date_cols[p]
+        per_low.columns += calculation[5]
+        df_perlow = df_perlow.join(per_low,how="outer")               # appending to a list of dataframes.
+
+        period_list.append(df_short_mean)                    # appending to a list of dataframes.        
+        period_max.append(df_short_max)
+#    print(period_df)
+#    print(df_mean)
+    box_plot(station,df_median,df_max,df_min,df_perhigh,df_perlow)
+    
     period_df = pd.concat(period_list,axis=1)           # combining the columns of all years
     max_df = pd.concat(period_max,axis=1)
     
-    df_daymean = df_join.groupby(df_join.index.dayofyear).mean()        # Grouping by day of the year and taking the mean.
-    df_daymax = df_join.groupby(df_join.index.dayofyear).max()
+    
+    df_join = df_join.loc['1960-01-01':'2019-12-31']
+    df_daymedian = df_join.groupby(df_join.index.dayofyear).median()        # Grouping by day of the year and taking the mean.
+    df_daymedian.columns = columns
+    df_daymedian.columns += calculation[0]
 
-    df_daymean.columns = columns    
+    df_daymean = df_join.groupby(df_join.index.dayofyear).mean()        # Grouping by day of the year and taking the mean.
+    df_daymean.columns = columns
+    df_daymean.columns += calculation[1]
+    
+    df_daymax = df_join.groupby(df_join.index.dayofyear).max()
     df_daymax.columns = columns
-        
+    df_daymax.columns += calculation[2]
+    
+    df_daymin = df_join.groupby(df_join.index.dayofyear).min()
+    df_daymin.columns = columns
+    df_daymin.columns += calculation[3]
+
+    df_perhigh = df_join.groupby(df_join.index.dayofyear).quantile(0.75)
+    df_perhigh.columns = columns
+    df_perhigh.columns += calculation[4]
+
+    df_perlow = df_join.groupby(df_join.index.dayofyear).quantile(0.25)
+    df_perlow.columns = columns    
+    df_perlow.columns += calculation[5]
+
+    
     df_CumPrecip = df_daymean.join(period_df)
     df_CumMax = df_daymax.join(max_df)
-    print(df_CumMax)
-
-    df_CumPrecip.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")    
+    # df_CumMin = df_daymin.join(min_df)
+    # df_CumPerHigh = per_high.join(df_perhigh)
+    # df_CumPerLow = per_low.join(df_perlow)
     
-   # plotting(df_CumPrecip,calc,station)
+
+    # df_CumPrecip.to_csv("E:\\School\\RutgersWork\\DEP_Precip\\temp.csv")    
+    
+    calc = "Average Days to Accumulate X Inches of Precipitation"    
+    plotting(df_CumPrecip,calc,station)
+    calc = "Maximum Days to Accumulate X Inches of Precipitation"
     plotting(df_CumMax,calc,station)
     
 def plotting(df,calc,station):
@@ -388,64 +471,79 @@ def plotting(df,calc,station):
         
         
 
-    if calc == 'Days to Accumulate X Inches of Precipitation':
+    if calc == "Average Days to Accumulate X Inches of Precipitation"  or calc == "Maximum Days to Accumulate X Inches of Precipitation" :
         
         print(df)
-        fig,axes = plt.subplots(3, 2,constrained_layout=True,sharex=True)
+        subcalc = calc
+        fig,axes = plt.subplots(2, 2,constrained_layout=True,sharex=True)
         fig.suptitle('%s: %s'%(station,calc),fontsize=10)
         
-        short_run = df.set_index('DATE')
-        short_run = short_run.loc['1980-01-01':'2019-12-31'].reset_index()     
-        
-        colors = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']
-        labels = ['1900-1929','1930-1959','1960-1989','1990-2019','1900-2019']
+        colors = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628']
+        labels = ['1960-1979','1980-1999','2000-2019','1960-2019']
         width = 0.75
+        if calc == "Average Days to Accumulate X Inches of Precipitation":
+            figure = 'mean'
+        elif calc == "Maximum Days to Accumulate X Inches of Precipitation":
+            figure = 'max'
         
-        axes[0,0].plot(df['DATE'],df['1900 0.5in'],linewidth=width,color=colors[0])
-        axes[0,0].plot(df['DATE'],df['1930 0.5in'],linewidth=width,color=colors[1])
-        axes[0,0].plot(df['DATE'],df['1960 0.5in'],linewidth=width,color=colors[2])
-        axes[0,0].plot(df['DATE'],df['1990 0.5in'],linewidth=width,color=colors[3])
-        axes[0,0].plot(df['DATE'],df['0.5in'],linewidth=1.0,color='black')
         
-        axes[0,1].plot(df['DATE'],df['1900 1.0in'],linewidth=width,color=colors[0])
-        axes[0,1].plot(df['DATE'],df['1930 1.0in'],linewidth=width,color=colors[1])
-        axes[0,1].plot(df['DATE'],df['1960 1.0in'],linewidth=width,color=colors[2])
-        axes[0,1].plot(df['DATE'],df['1990 1.0in'],linewidth=width,color=colors[3])
-        axes[0,1].plot(df['DATE'],df['1.0in'],linewidth=1.0,color='black')
-
-        axes[1,0].plot(df['DATE'],df['1900 2.0in'],linewidth=width,color=colors[0])
-        axes[1,0].plot(df['DATE'],df['1930 2.0in'],linewidth=width,color=colors[1])
-        axes[1,0].plot(df['DATE'],df['1960 2.0in'],linewidth=width,color=colors[2])
-        axes[1,0].plot(df['DATE'],df['1990 2.0in'],linewidth=width,color=colors[3])
-        axes[1,0].plot(df['DATE'],df['2.0in'],linewidth=1.0,color='black')
-
-        axes[1,1].plot(df['DATE'],df['1900 4.0in'],linewidth=width,color=colors[0])
-        axes[1,1].plot(df['DATE'],df['1930 4.0in'],linewidth=width,color=colors[1])
-        axes[1,1].plot(df['DATE'],df['1960 4.0in'],linewidth=width,color=colors[2])
-        axes[1,1].plot(df['DATE'],df['1990 4.0in'],linewidth=width,color=colors[3])
-        axes[1,1].plot(df['DATE'],df['4.0in'],linewidth=1.0,color='black')
-
-        axes[2,0].plot(df['DATE'],df['1900 10.0in'],linewidth=width,color=colors[0])
-        axes[2,0].plot(df['DATE'],df['1930 10.0in'],linewidth=width,color=colors[1])
-        axes[2,0].plot(df['DATE'],df['1960 10.0in'],linewidth=width,color=colors[2])
-        axes[2,0].plot(df['DATE'],df['1990 10.0in'],linewidth=width,color=colors[3])
-        axes[2,0].plot(df['DATE'],df['10.0in'],linewidth=1.0,color='black')
+        # axes[0,0].plot(df['DATE'],df['1900 0.5in'],linewidth=width,color=colors[0])
+        # axes[0,0].plot(df['DATE'],df['1920 0.5in'],linewidth=width,color=colors[1])
+        # axes[0,0].plot(df['DATE'],df['1940 0.5in'],linewidth=width,color=colors[2])
+        axes[0,0].plot(df['DATE'],df['1960 0.5in %s'%figure],linewidth=width,color=colors[0])
+        axes[0,0].plot(df['DATE'],df['1980 0.5in %s'%figure],linewidth=width,color=colors[1])
+        axes[0,0].plot(df['DATE'],df['2000 0.5in %s'%figure],linewidth=width,color=colors[2])
         
-        axes[2,1].plot(df['DATE'],df['1900 20.0in'],linewidth=width,color=colors[0])
-        axes[2,1].plot(df['DATE'],df['1930 20.0in'],linewidth=width,color=colors[1])
-        axes[2,1].plot(df['DATE'],df['1960 20.0in'],linewidth=width,color=colors[2])
-        axes[2,1].plot(df['DATE'],df['1990 20.0in'],linewidth=width,color=colors[3])
-        axes[2,1].plot(df['DATE'],df['20.0in'],linewidth=1.0,color='black')
+        # axes[0,1].plot(df['DATE'],df['1900 1.0in'],linewidth=width,color=colors[0])
+        # axes[0,1].plot(df['DATE'],df['1920 1.0in'],linewidth=width,color=colors[1])
+        # axes[0,1].plot(df['DATE'],df['1940 1.0in'],linewidth=width,color=colors[2])
+        # axes[0,1].plot(df['DATE'],df['1960 1.0in'],linewidth=width,color=colors[3])
+        # axes[0,1].plot(df['DATE'],df['1980 1.0in'],linewidth=width,color=colors[4])
+        # axes[0,1].plot(df['DATE'],df['2000 1.0in'],linewidth=width,color=colors[5])
 
+        # axes[1,0].plot(df['DATE'],df['1900 2.0in'],linewidth=width,color=colors[0])
+        # axes[1,0].plot(df['DATE'],df['1920 2.0in'],linewidth=width,color=colors[1])
+        # axes[1,0].plot(df['DATE'],df['1940 2.0in'],linewidth=width,color=colors[2])
+        axes[0,1].plot(df['DATE'],df['1960 2.0in %s'%figure],linewidth=width,color=colors[0])
+        axes[0,1].plot(df['DATE'],df['1980 2.0in %s'%figure],linewidth=width,color=colors[1])
+        axes[0,1].plot(df['DATE'],df['2000 2.0in %s'%figure],linewidth=width,color=colors[2])
+
+        # axes[1,1].plot(df['DATE'],df['1900 4.0in'],linewidth=width,color=colors[0])
+        # axes[1,1].plot(df['DATE'],df['1920 4.0in'],linewidth=width,color=colors[1])
+        # axes[1,1].plot(df['DATE'],df['1940 4.0in'],linewidth=width,color=colors[2])
+        # axes[1,1].plot(df['DATE'],df['1960 4.0in'],linewidth=width,color=colors[3])
+        # axes[1,1].plot(df['DATE'],df['1980 4.0in'],linewidth=width,color=colors[4])
+        # axes[1,1].plot(df['DATE'],df['2000 4.0in'],linewidth=width,color=colors[5])
+
+        # axes[2,0].plot(df['DATE'],df['1900 10.0in'],linewidth=width,color=colors[0])
+        # axes[2,0].plot(df['DATE'],df['1920 10.0in'],linewidth=width,color=colors[1])
+        # axes[2,0].plot(df['DATE'],df['1940 10.0in'],linewidth=width,color=colors[2])
+        axes[1,0].plot(df['DATE'],df['1960 10.0in %s'%figure],linewidth=width,color=colors[0])
+        axes[1,0].plot(df['DATE'],df['1980 10.0in %s'%figure],linewidth=width,color=colors[1])
+        axes[1,0].plot(df['DATE'],df['2000 10.0in %s'%figure],linewidth=width,color=colors[2])
+        
+        # axes[2,1].plot(df['DATE'],df['1900 20.0in'],linewidth=width,color=colors[0])
+        # axes[2,1].plot(df['DATE'],df['1920 20.0in'],linewidth=width,color=colors[1])
+        # axes[2,1].plot(df['DATE'],df['1940 20.0in'],linewidth=width,color=colors[2])
+        axes[1,1].plot(df['DATE'],df['1960 20.0in %s'%figure],linewidth=width,color=colors[0])
+        axes[1,1].plot(df['DATE'],df['1980 20.0in %s'%figure],linewidth=width,color=colors[1])
+        axes[1,1].plot(df['DATE'],df['2000 20.0in %s'%figure],linewidth=width,color=colors[2])
+        
+        axes[0,0].plot(df['DATE'],df['0.5in %s'%figure],linewidth=1.0,color='black')
+        # axes[0,1].plot(df['DATE'],df['1.0in'],linewidth=1.0,color='black')
+        axes[0,1].plot(df['DATE'],df['2.0in %s'%figure],linewidth=1.0,color='black')
+        # axes[1,1].plot(df['DATE'],df['4.0in'],linewidth=1.0,color='black')
+        axes[1,0].plot(df['DATE'],df['10.0in %s'%figure],linewidth=1.0,color='black')
+        axes[1,1].plot(df['DATE'],df['20.0in %s'%figure],linewidth=1.0,color='black')
 
         for i,ax in enumerate(fig.axes):
-            calc = ['0.5in','1in','2in','4in','10in','20in']
+            calc = ['0.5in','2in','10in','20in']
             plot_format(ax,station,calc[i],year_range)
             
             
-        fig = fig.legend(labels,loc='lower center',fontsize=8, ncol=5,bbox_to_anchor=[0, -0.08,1,1], bbox_transform=fig.transFigure )
+        fig = fig.legend(labels,loc='lower center',fontsize=8, ncol=4,bbox_to_anchor=[0, -0.10,1,1], bbox_transform=fig.transFigure )
      #   fig.subplots_adjust(bottom=0.25)
-        savefig(station,calc)
+        savefig(station,subcalc)
 
     
     if calc == "Dry Intervals":             # Three separate plots
@@ -623,6 +721,82 @@ def plot_format(ax,station,calc,year_range):
 
         
     ax.xaxis.label.set_visible(False)    
+def box_plot(station,df_median,df_max,df_min,df_high,df_low):
+    '''
+    Box plotting from Days to Accumulate X inches. 
+    Plan to do 20 year increments.
+    Too many columns...
+
+    Plots work for one year range at a time. Need to adjust scales...
+    
+    df_mean = mean
+    df_max = max
+    df_min = min
+    df_high = 75th Percentile
+    df_low = 25th Percentile
+    '''
+    fig,axes = plt.subplots(2, 2,constrained_layout=True,sharex=True)
+    date = df_median.index
+    subcalc = "1980-1999 & 2000-2019 Days to Accumulate Precipitation"
+#    subcalc = "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation"    
+    fig.suptitle('%s: %s'%(station,subcalc),fontsize=10)
+    year_range = (2000,2019)
+    
+    
+    depth_list = ["0.5in","2.0in","10.0in","20.0in"]        # various threshold depths to reach.
+    cord_list = [(0,0),(0,1),(1,0),(1,1),(2,0),(2,1)]
+    count = 0
+    year1 = '2000'
+    year2 = '1980'
+    
+    year_range1 = '2000-2019'
+    year_range2 = '1980-1999'
+
+#    print(df_mean['2000 0.5in mean'])
+    for depth in depth_list:
+      #  print(depth)
+     #   print(df_mean['2000 0.5in mean'])
+        axes[cord_list[count]].plot(date,df_median['%s %s median'%(year1,depth)],linewidth=0.25,c='blue',label="%s Median"%year1)
+        axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year1,depth)],df_high['%s %s per high'%(year1,depth)],alpha =0.35,linewidth=0,color='blue',label="%s 25th-75th"%year1)
+ #       axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year1,depth)],df_max['%s %s max'%(year1,depth)],alpha=0.35,linewidth=0,color='blue')
+        
+        axes[cord_list[count]].plot(date,df_median['%s %s median'%(year2,depth)],linewidth=0.25,c='red',label="%s Median"%year2)
+        axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year2,depth)],df_high['%s %s per high'%(year2,depth)],alpha =0.35,linewidth=0,color='red',label="%s 25th-75th"%year2)
+ #       axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year2,depth)],df_max['%s %s max'%(year2,depth)],alpha=0.35,linewidth=0,color='red')
+        
+        count += 1
+    for i,ax in enumerate(fig.axes):
+        calc = ['0.5in','2in','10in','20in']
+        plot_format(ax,station,calc[i],year_range)
+
+    labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
+              '%s 25th-75th Percentile'%year_range1,'%s 25th-75th Percentile'%year_range2]
+    
+    # labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
+    #           '%s Minimum-Maximum'%year_range1,'%s Minimum-Maximum'%year_range2]              
+              # '%s 25th'%(year1),'%s 25th'%(year2),
+              # '%s 75th'%(year1),'%s 75th'%(year2)]
+    blue_patch = mpatches.Patch(color='blue',label="%s Median"%year_range1)
+    blue_shade = mpatches.Patch(color='blue',label="%s 25th-75th Percentile"%year_range1,alpha = 0.35)
+ #   blue_shade = mpatches.Patch(color='blue',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)
+    
+    red_patch = mpatches.Patch(color='red',label="%s Median"%year_range2)
+    red_shade = mpatches.Patch(color='red',label="%s 25th-75th Percentile"%year_range2,alpha = 0.35)
+ #   red_shade = mpatches.Patch(color='red',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)
+    
+
+    handles = [blue_patch,red_patch,blue_shade,red_shade]
+
+    fig = fig.legend(handles,labels,loc='lower center',fontsize=8, ncol=2,bbox_to_anchor=[0, -0.13,1,1], bbox_transform=fig.transFigure )
+    
+    if subcalc == "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation":
+        s_title = "MinMax Days to Accumulate Precipitation"
+    else:
+        s_title = subcalc
+
+    savefig(station,s_title)
+
+
 
 def statistics(df,stat_calc,station,calc,year_range):
        # df = df.reset_index()
