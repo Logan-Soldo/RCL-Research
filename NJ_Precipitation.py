@@ -66,7 +66,7 @@ def data_analysis(df,station):
     
   #  dry_intervals(df,station)
     
-    cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
+ #   cumulative_precip(df,station)           # Number of days to reach x threshold. (Currently slow to run)
  
     
     
@@ -735,66 +735,71 @@ def box_plot(station,df_median,df_max,df_min,df_high,df_low):
     df_high = 75th Percentile
     df_low = 25th Percentile
     '''
-    fig,axes = plt.subplots(2, 2,constrained_layout=True,sharex=True)
-    date = df_median.index
-    subcalc = "1980-1999 & 2000-2019 Days to Accumulate Precipitation"
-#    subcalc = "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation"    
-    fig.suptitle('%s: %s'%(station,subcalc),fontsize=10)
-    year_range = (2000,2019)
-    
-    
-    depth_list = ["0.5in","2.0in","10.0in","20.0in"]        # various threshold depths to reach.
-    cord_list = [(0,0),(0,1),(1,0),(1,1),(2,0),(2,1)]
-    count = 0
-    year1 = '2000'
-    year2 = '1980'
-    
-    year_range1 = '2000-2019'
-    year_range2 = '1980-1999'
 
-#    print(df_mean['2000 0.5in mean'])
-    for depth in depth_list:
-      #  print(depth)
-     #   print(df_mean['2000 0.5in mean'])
-        axes[cord_list[count]].plot(date,df_median['%s %s median'%(year1,depth)],linewidth=0.25,c='blue',label="%s Median"%year1)
-        axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year1,depth)],df_high['%s %s per high'%(year1,depth)],alpha =0.35,linewidth=0,color='blue',label="%s 25th-75th"%year1)
- #       axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year1,depth)],df_max['%s %s max'%(year1,depth)],alpha=0.35,linewidth=0,color='blue')
+
+    for run in range(0,2):
+        fig,axes = plt.subplots(2, 2,constrained_layout=True,sharex=True)
+        date = df_median.index
+    #    
+        year_range = (2000,2019)
         
-        axes[cord_list[count]].plot(date,df_median['%s %s median'%(year2,depth)],linewidth=0.25,c='red',label="%s Median"%year2)
-        axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year2,depth)],df_high['%s %s per high'%(year2,depth)],alpha =0.35,linewidth=0,color='red',label="%s 25th-75th"%year2)
- #       axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year2,depth)],df_max['%s %s max'%(year2,depth)],alpha=0.35,linewidth=0,color='red')
         
-        count += 1
-    for i,ax in enumerate(fig.axes):
-        calc = ['0.5in','2in','10in','20in']
-        plot_format(ax,station,calc[i],year_range)
+        depth_list = ["0.5in","2.0in","10.0in","20.0in"]        # various threshold depths to reach.
+        cord_list = [(0,0),(0,1),(1,0),(1,1),(2,0),(2,1)]
+        year1 = '2000'
+        year2 = '1980'
+        
+        year_range1 = '2000-2019'
+        year_range2 = '1980-1999'
+        count = 0
+        for depth in depth_list:
+            axes[cord_list[count]].plot(date,df_median['%s %s median'%(year1,depth)],linewidth=0.25,c='blue',label="%s Median"%year1)
+            axes[cord_list[count]].plot(date,df_median['%s %s median'%(year2,depth)],linewidth=0.25,c='red',label="%s Median"%year2)
+            
+            if run == 0:                 
+                axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year1,depth)],df_high['%s %s per high'%(year1,depth)],alpha =0.35,linewidth=0,color='blue',label="%s 25th-75th"%year1)
+                axes[cord_list[count]].fill_between(date,df_low['%s %s per low' % (year2,depth)],df_high['%s %s per high'%(year2,depth)],alpha =0.35,linewidth=0,color='red',label="%s 25th-75th"%year2)
+                labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
+                          '%s 25th-75th Percentile'%year_range1,'%s 25th-75th Percentile'%year_range2]
+                
+                blue_patch = mpatches.Patch(color='blue',label="%s Median"%year_range1)
+                blue_shade = mpatches.Patch(color='blue',label="%s 25th-75th Percentile"%year_range1,alpha = 0.35)
+                
+                red_patch = mpatches.Patch(color='red',label="%s Median"%year_range2)
+                red_shade = mpatches.Patch(color='red',label="%s 25th-75th Percentile"%year_range2,alpha = 0.35)
+                subcalc = "1980-1999 & 2000-2019 Days to Accumulate Precipitation"
 
-    labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
-              '%s 25th-75th Percentile'%year_range1,'%s 25th-75th Percentile'%year_range2]
+            
+            elif run ==1:                
+               axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year1,depth)],df_max['%s %s max'%(year1,depth)],alpha=0.35,linewidth=0,color='blue')            
+               axes[cord_list[count]].fill_between(date,df_min['%s %s min'%(year2,depth)],df_max['%s %s max'%(year2,depth)],alpha=0.35,linewidth=0,color='red')
+               labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
+                       '%s Minimum-Maximum'%year_range1,'%s Minimum-Maximum'%year_range2] 
+                
+               blue_patch = mpatches.Patch(color='blue',label="%s Median"%year_range1)    
+               blue_shade = mpatches.Patch(color='blue',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)
+                
+               red_patch = mpatches.Patch(color='red',label="%s Median"%year_range2)    
+               red_shade = mpatches.Patch(color='red',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)            
+               subcalc = "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation"  
+            count += 1
+        for i,ax in enumerate(fig.axes):
+            calc = ['0.5in','2in','10in','20in']
+            plot_format(ax,station,calc[i],year_range)
     
-    # labels = ['%s Median'%(year_range1),'%s Median'%(year_range2),
-    #           '%s Minimum-Maximum'%year_range1,'%s Minimum-Maximum'%year_range2]              
-              # '%s 25th'%(year1),'%s 25th'%(year2),
-              # '%s 75th'%(year1),'%s 75th'%(year2)]
-    blue_patch = mpatches.Patch(color='blue',label="%s Median"%year_range1)
-    blue_shade = mpatches.Patch(color='blue',label="%s 25th-75th Percentile"%year_range1,alpha = 0.35)
- #   blue_shade = mpatches.Patch(color='blue',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)
-    
-    red_patch = mpatches.Patch(color='red',label="%s Median"%year_range2)
-    red_shade = mpatches.Patch(color='red',label="%s 25th-75th Percentile"%year_range2,alpha = 0.35)
- #   red_shade = mpatches.Patch(color='red',label="%s Minimum-Maximum"%year_range1,alpha = 0.35)
-    
+        fig.suptitle('%s: %s'%(station,subcalc),fontsize=10)
 
-    handles = [blue_patch,red_patch,blue_shade,red_shade]
-
-    fig = fig.legend(handles,labels,loc='lower center',fontsize=8, ncol=2,bbox_to_anchor=[0, -0.13,1,1], bbox_transform=fig.transFigure )
+        
+        handles = [blue_patch,red_patch,blue_shade,red_shade]
+        fig = fig.legend(handles,labels,loc='lower center',fontsize=8, ncol=2,bbox_to_anchor=[0, -0.13,1,1], bbox_transform=fig.transFigure )                 
     
-    if subcalc == "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation":
-        s_title = "MinMax Days to Accumulate Precipitation"
-    else:
-        s_title = subcalc
-
-    savefig(station,s_title)
+        
+        if subcalc == "1980-1999 & 2000-2019 \n Min/Max Days to Accumulate Precipitation":
+            s_title = "MinMax Days to Accumulate Precipitation"
+        else:
+            s_title = subcalc
+    
+        savefig(station,s_title)
 
 
 
@@ -849,42 +854,43 @@ def statistics(df,stat_calc,station,calc,year_range):
         stats_save = calc       
         reg_df = pd.concat(stat_list,axis=1)
         reg_df.columns = range(reg_df.shape[1])
-        # fig2, ax3 =plt.subplots(1)
-        # ax3.axis('tight')
-        # ax3.axis('off')        
-        # stat_table = ax3.table(cellText=stats_df.values,colLabels=stats_df.columns,loc='center')
-        # for f in stats_df["Year"]:  
-        #     if int(f[0:4]) >= 1980:     # Highlighting most recent 10 years in yellow.
-        #         row = stats_df[stats_df['Year']==f].index.item()
-        #         stat_table[row+1,0].set_facecolor('#FFFF00')            # Yellow highlight
-        #         stat_table[row+1,1].set_facecolor('#FFFF00')
-        #         stat_table[row+1,2].set_facecolor('#FFFF00')
-        #         stat_table[row+1,3].set_facecolor('#FFFF00')
-        #         stat_table[row+1,4].set_facecolor('#FFFF00')
+        
+        fig2, ax3 =plt.subplots(1)
+        ax3.axis('tight')
+        ax3.axis('off')        
+        stat_table = ax3.table(cellText=stats_df.values,colLabels=stats_df.columns,loc='center')
+        for f in stats_df["Year"]:  
+            if int(f[0:4]) >= 1980:     # Highlighting most recent 10 years in yellow.
+                row = stats_df[stats_df['Year']==f].index.item()
+                stat_table[row+1,0].set_facecolor('#FFFF00')            # Yellow highlight
+                stat_table[row+1,1].set_facecolor('#FFFF00')
+                stat_table[row+1,2].set_facecolor('#FFFF00')
+                stat_table[row+1,3].set_facecolor('#FFFF00')
+                stat_table[row+1,4].set_facecolor('#FFFF00')
 
-        # for g in stats_df['P-value']:                   # Highlighting level of p-value significance in shades of red.
-        #     if g <= 0.01:
-        #         sig = stats_df[stats_df['P-value'] == g].index.tolist()
-        #         for r in range(len(sig)):
-        #             stat_table[sig[r]+1,3].set_facecolor('#8B0000')     # Dark red
-        #     elif (g <= 0.05) and (g > 0.01):
-        #         sig = stats_df[stats_df['P-value'] == g].index.tolist()
-        #         for r in range(len(sig)):
-        #             stat_table[sig[r]+1,3].set_facecolor('#cc0034')
-        # for h in stats_df['Slope']:
-        #     if h > 0:
-        #         pos = stats_df[stats_df['Slope'] == h].index.tolist()
-        #         for r in range(len(pos)):
-        #             stat_table[pos[r]+1,1].set_facecolor('#cc0034')         #Red highlight
-        #     else:
-        #         pos = stats_df[stats_df['Slope'] == h].index.tolist()
-        #         for r in range(len(pos)):
-        #             stat_table[pos[r]+1,1].set_facecolor('#009acc')         #Blue highlight
+        for g in stats_df['P-value']:                   # Highlighting level of p-value significance in shades of red.
+            if g <= 0.01:
+                sig = stats_df[stats_df['P-value'] == g].index.tolist()
+                for r in range(len(sig)):
+                    stat_table[sig[r]+1,3].set_facecolor('#8B0000')     # Dark red
+            elif (g <= 0.05) and (g > 0.01):
+                sig = stats_df[stats_df['P-value'] == g].index.tolist()
+                for r in range(len(sig)):
+                    stat_table[sig[r]+1,3].set_facecolor('#cc0034')
+        for h in stats_df['Slope']:
+            if h > 0:
+                pos = stats_df[stats_df['Slope'] == h].index.tolist()
+                for r in range(len(pos)):
+                    stat_table[pos[r]+1,1].set_facecolor('#cc0034')         #Red highlight
+            else:
+                pos = stats_df[stats_df['Slope'] == h].index.tolist()
+                for r in range(len(pos)):
+                    stat_table[pos[r]+1,1].set_facecolor('#009acc')         #Blue highlight
                     
         stats_df['Slope'] = stats_df['Slope'].map('{:.2f}'.format)
 
-
-  #      savetable(station,stats_save,stat_calc)
+        print(stats_save)
+        savetable(station,stats_save,stat_calc)
         
         return reg_df,period_slope_df     # Returning the 30 year regressions in "reg_df" and full year period in "period_slope_df"
             
@@ -921,7 +927,6 @@ def month_to_season_LUT(df,station,calc):
 #    unstack = season.reset_index()
     unstack.index.names = ['DATE']
     unstack = unstack[1:-1]
-    print(unstack)
     plotting(unstack,calc,station)
 
 
@@ -965,7 +970,7 @@ def savetable(station,calc,stat_calc):
 def main():
 #    station_list = ['New Brunswick']
     station_list = ['Coastal South','Northwest','Central','Northeast','Coastal North','Southwest']    
-#    station_list = ['Northeast']
+#    station_list = ['Southwest']
     
     for station in station_list:
         data = read_file(station)
