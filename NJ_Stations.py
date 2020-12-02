@@ -28,9 +28,10 @@ def read_file(station,method):
             print("Problem Finding File. Exiting")
             break
         data['PRCP'] = np.where(data['PRCP']==" S",0,data['PRCP'])
+        data['PRCP'] = np.where(data['PRCP'] == " T",0,data['PRCP'])
         
         data['PRCP'] = data['PRCP'].astype(str)
-        data['PRCP'] =  data['PRCP'].str.extract('([+-.0-9]+)(.*)').rename(columns={0:'PRCP', 1:'UNIT'})
+        data['PRCP'] = data['PRCP'].str.extract('([+-.0-9]+)(.*)').rename(columns={0:'PRCP', 1:'UNIT'})
         
 
         data['PRCP'] = pd.to_numeric(data.PRCP,errors='coerce')
@@ -38,7 +39,7 @@ def read_file(station,method):
         data = data.loc['1900-01-01':'2019-12-31']        # Extended long term period of record...
         
         data.reset_index(level=0,inplace=True)
-   #     print(data)
+
         return data
 
 def fill_file(station_list):
@@ -89,13 +90,14 @@ def save_csv(df,station):
     df.to_csv('E:\School\RutgersWork\DEP_Precip\Stations\%s.csv'%station)
 def main():
 #    station_list = [['Northwest','Newton','Sussex Airport','High Point','Layton','Canistear Reservoir']]
-    station_list = [['Coastal South','Atlantic City','Tuckerton','Northfield','Pleasantville'],
-                    ['Northwest','Newton','Sussex Airport','High Point','Layton','Canistear Reservoir'],
-                    ['Central','New Brunswick','New Brunswick(1)','Plainfield'],
-                    ['Northeast','Dover','Wanaque','Boonton','Newark Liberty','Paterson'],
-                    ['Coastal North','Sandy Hook','Fort Hancock','Toms River','Freehold','Central','New Brunswick','New Brunswick(1)'],
-                    ['Southwest','Pemberton','Hammonton','Clayton','Vineland','Moorestown']]    # Vineland???
-  #  station_list = [['Coastal South','Atlantic City']]
+    station_list = [['Atlantic City Marina','Atlantic City','Tuckerton','Northfield','Pleasantville'],
+                    ['Sussex','Newton','Sussex Airport','High Point','Layton','Canistear Reservoir'],
+                    ['New Brunswick','New Brunswick Experimental','New Brunswick(1)','Plainfield'],
+                    ['Charlotteburg','Dover','Wanaque','Boonton','Newark Liberty','Paterson'],
+                    ['Long Branch','Sandy Hook','Fort Hancock','Toms River','Freehold','New Brunswick','New Brunswick Experimental','New Brunswick(1)'],
+                    ['Indian Mills','Pemberton','Hammonton','Clayton','Vineland','Moorestown']]    
+    
+    Region_list = ['Coastal South','Northwest','Central','Northeast','Coastal North','Southwest']
     stats=[]
     for station in station_list:
         main_station,data = fill_file(station)
